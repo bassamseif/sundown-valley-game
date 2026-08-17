@@ -66,6 +66,19 @@ export function Ocean() {
             float deepAlpha = 0.88;
             diffuseColor.a = mix(mix(shallowAlpha, deepAlpha, depthT), 1.0, fresnel * 0.6);
           }`
+        )
+        .replace(
+          // traveling glint sparkles, added as emissive so they read
+          // clearly regardless of light direction — the visible
+          // "liveliness" cue on top of the subtler lighting ripple
+          "#include <emissivemap_fragment>",
+          `#include <emissivemap_fragment>
+          {
+            float glintA = sin(vWorldPos.x * 2.4 + uTime * 1.7) * sin(vWorldPos.z * 2.1 - uTime * 1.3);
+            float glintB = sin(vWorldPos.x * 1.3 - uTime * 0.9 + vWorldPos.z * 0.6) * sin(vWorldPos.z * 1.7 + uTime * 1.1);
+            float glint = pow(max(glintA, 0.0), 8.0) + pow(max(glintB, 0.0), 8.0) * 0.6;
+            totalEmissiveRadiance += vec3(1.0, 0.98, 0.85) * glint * 0.6;
+          }`
         );
     },
     []
