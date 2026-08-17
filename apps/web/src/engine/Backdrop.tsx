@@ -4,7 +4,8 @@ import { Sky, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import { Ocean } from "./Ocean";
 import { PalmTree } from "./PalmTree";
-import { Sand } from "./Sand";
+import { Island } from "./Island";
+import { islandHeight } from "./terrain";
 
 const CYCLE_SECONDS = 50;
 const AZIMUTH_DEG = 200; // sun sets out over the ocean, roughly ahead of the camera
@@ -19,6 +20,23 @@ function sunVector(elevationDeg: number, azimuthDeg: number) {
   const theta = THREE.MathUtils.degToRad(azimuthDeg);
   return new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
 }
+
+// Palms planted around the dune ring so the beach reads as surrounding
+// the puzzle from every orbit angle, each sitting at the terrain's own
+// height instead of floating at a fixed y.
+const PALM_PLACEMENTS = [
+  { angle: 145, radius: 10.5, scale: 1.1 },
+  { angle: 195, radius: 11.5, scale: 0.95 },
+  { angle: 35, radius: 10, scale: 1 },
+  { angle: 355, radius: 11, scale: 0.9 },
+  { angle: 90, radius: 12.5, scale: 0.85 },
+  { angle: 260, radius: 12, scale: 1.05 },
+].map(({ angle, radius, scale }) => {
+  const rad = THREE.MathUtils.degToRad(angle);
+  const x = Math.cos(rad) * radius;
+  const z = Math.sin(rad) * radius;
+  return { position: [x, islandHeight(x, z), z] as [number, number, number], scale, lean: (Math.random() - 0.5) * 0.16 };
+});
 
 // A beach at golden hour: procedural atmospheric sky (no HDR/network
 // fetch — see git history for why), a sun that visibly arcs down toward
@@ -63,24 +81,19 @@ export function Backdrop() {
         <orthographicCamera attach="shadow-camera" args={[-14, 14, 14, -14, 0.5, 60]} />
       </directionalLight>
 
-      <Sand />
+      <Island />
       <Ocean />
 
-      {/* glittering sun-path on the water — the visual signature of a
-          sunset beach that flat lighting alone can't sell */}
-      <Sparkles
-        count={80}
-        scale={[3.2, 0.08, 18]}
-        position={[0, -0.5, -16]}
-        size={2.5}
-        speed={0.25}
-        color="#ffe6a0"
-      />
+      {/* glittering sun-path on the water, aligned to the sun's azimuth
+          — the visual signature of a sunset beach that lighting alone
+          can't sell */}
+      <group rotation={[0, Math.atan2(Math.cos(THREE.MathUtils.degToRad(AZIMUTH_DEG)), Math.sin(THREE.MathUtils.degToRad(AZIMUTH_DEG))), 0]}>
+        <Sparkles count={80} scale={[3.2, 0.08, 20]} position={[0, 0.05, 12]} size={2.5} speed={0.25} color="#ffe6a0" />
+      </group>
 
-      <PalmTree position={[-6.2, 0, 2.5]} scale={1.1} lean={0.12} />
-      <PalmTree position={[-7.4, 0, -0.5]} scale={0.9} lean={0.06} />
-      <PalmTree position={[6.4, 0, 2.2]} scale={1} lean={-0.1} />
-      <PalmTree position={[7.6, 0, -0.8]} scale={0.85} lean={-0.05} />
+      {PALM_PLACEMENTS.map((p, i) => (
+        <PalmTree key={i} position={p.position} scale={p.scale} lean={p.lean} />
+      ))}
     </>
   );
 }
