@@ -1,9 +1,10 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { RoundedBox, Sky } from "@react-three/drei";
+import { Sky, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import { Ocean } from "./Ocean";
 import { PalmTree } from "./PalmTree";
+import { Sand } from "./Sand";
 
 const CYCLE_SECONDS = 50;
 const AZIMUTH_DEG = 200; // sun sets out over the ocean, roughly ahead of the camera
@@ -62,17 +63,24 @@ export function Backdrop() {
         <orthographicCamera attach="shadow-camera" args={[-14, 14, 14, -14, 0.5, 60]} />
       </directionalLight>
 
-      {/* sand */}
-      <RoundedBox args={[20, 0.4, 20]} position={[0, -0.2, 1]} radius={0.1} receiveShadow>
-        <meshStandardMaterial color="#e8cf9a" roughness={0.95} />
-      </RoundedBox>
-
+      <Sand />
       <Ocean />
 
-      <PalmTree position={[-6.2, -0.2, 2.5]} scale={1.1} lean={0.12} />
-      <PalmTree position={[-7.4, -0.2, -0.5]} scale={0.9} lean={0.06} />
-      <PalmTree position={[6.4, -0.2, 2.2]} scale={1} lean={-0.1} />
-      <PalmTree position={[7.6, -0.2, -0.8]} scale={0.85} lean={-0.05} />
+      {/* glittering sun-path on the water — the visual signature of a
+          sunset beach that flat lighting alone can't sell */}
+      <Sparkles
+        count={80}
+        scale={[3.2, 0.08, 18]}
+        position={[0, -0.5, -16]}
+        size={2.5}
+        speed={0.25}
+        color="#ffe6a0"
+      />
+
+      <PalmTree position={[-6.2, 0, 2.5]} scale={1.1} lean={0.12} />
+      <PalmTree position={[-7.4, 0, -0.5]} scale={0.9} lean={0.06} />
+      <PalmTree position={[6.4, 0, 2.2]} scale={1} lean={-0.1} />
+      <PalmTree position={[7.6, 0, -0.8]} scale={0.85} lean={-0.05} />
     </>
   );
 }
