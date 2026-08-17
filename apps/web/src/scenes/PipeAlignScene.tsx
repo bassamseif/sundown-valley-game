@@ -24,7 +24,7 @@ function Pool({ solved }: { solved: boolean }) {
   return (
     <Sphere ref={ref} args={[0.38, 32, 32]}>
       <meshPhysicalMaterial
-        color={solved ? "#8ef0c4" : "#6b7ab0"}
+        color={solved ? "#8ef0c4" : "#8291c4"}
         emissive={solved ? "#1c5c3f" : "#000000"}
         emissiveIntensity={solved ? 0.5 : 0}
         roughness={0.2}
@@ -85,7 +85,7 @@ export function PipeAlignScene() {
               receiveShadow
             >
               <meshPhysicalMaterial
-                color={open ? "#7fe3c9" : "#6b7ab0"}
+                color={open ? "#7fe3c9" : "#8291c4"}
                 emissive={open ? "#1c5c3f" : "#000000"}
                 emissiveIntensity={open ? 0.4 : 0}
                 roughness={0.25}

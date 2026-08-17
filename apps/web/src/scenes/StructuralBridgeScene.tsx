@@ -80,10 +80,10 @@ export function StructuralBridgeScene() {
     <group>
       {/* platforms */}
       <RoundedBox args={[2.2, 0.5, 1.6]} radius={0.08} position={[-PLATFORM_X, 0.65, 0]} receiveShadow>
-        <meshStandardMaterial color="#6b7ab0" roughness={0.5} />
+        <meshStandardMaterial color="#8291c4" roughness={0.5} />
       </RoundedBox>
       <RoundedBox args={[2.2, 0.5, 1.6]} radius={0.08} position={[PLATFORM_X, 0.65, 0]} receiveShadow>
-        <meshStandardMaterial color="#6b7ab0" roughness={0.5} />
+        <meshStandardMaterial color="#8291c4" roughness={0.5} />
       </RoundedBox>
 
       {/* gap slots */}
@@ -105,7 +105,7 @@ export function StructuralBridgeScene() {
                   }}
                 >
                   <meshStandardMaterial
-                    color={wrongSlot === slot.id ? "#ff6b6b" : "#3a4570"}
+                    color={wrongSlot === slot.id ? "#ff6b6b" : "#4d5a8f"}
                     transparent
                     opacity={0.55}
                   />

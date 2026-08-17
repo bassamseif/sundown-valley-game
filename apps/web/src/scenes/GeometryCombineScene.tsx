@@ -65,7 +65,7 @@ export function GeometryCombineScene() {
       {/* target pedestal */}
       <group position={[0, 0.2, -1.6]}>
         <RoundedBox args={[1.7, 0.3, 1.7]} radius={0.08} position={[0, -0.15, 0]} receiveShadow>
-          <meshStandardMaterial color="#6b7ab0" roughness={0.5} metalness={0.15} />
+          <meshStandardMaterial color="#8291c4" roughness={0.5} metalness={0.15} />
         </RoundedBox>
         {!solved && (
           <Icosahedron args={[scaleFor(TARGET_UNITS), 0]} position={[0, 0.85, 0]}>
