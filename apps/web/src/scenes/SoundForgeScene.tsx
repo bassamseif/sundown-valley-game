@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RoundedBox, Sphere } from "@react-three/drei";
+import { ContactShadows, RoundedBox, Sparkles, Sphere } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -203,9 +203,20 @@ function PayoffObject({ wordId, visible }: { wordId: string; visible: boolean })
 
   return (
     <group ref={groupRef} position={[0, SLOT_Y - 0.3, SLOT_Z - 0.5]} scale={0}>
-      <RoundedBox args={[0.55, 0.55, 0.55]} radius={0.12} castShadow>
-        <meshPhysicalMaterial color={color} emissive={color} emissiveIntensity={0.25} roughness={0.2} clearcoat={0.8} />
-      </RoundedBox>
+      <mesh castShadow>
+        <icosahedronGeometry args={[0.4, 0]} />
+        <meshPhysicalMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={0.3}
+          roughness={0.1}
+          metalness={0.1}
+          clearcoat={1}
+          transmission={0.15}
+          ior={1.4}
+        />
+      </mesh>
+      {visible && <Sparkles count={20} scale={1.3} size={3} speed={0.4} color="#fff3e0" />}
     </group>
   );
 }
@@ -289,8 +300,26 @@ export function SoundForgeScene() {
 
       {/* tray */}
       <RoundedBox args={[trayWidth, 0.3, 1.0]} radius={0.1} position={[0, DISH_Y - 0.3, DISH_Z]} receiveShadow>
-        <meshStandardMaterial color="#5c6690" roughness={0.6} metalness={0.2} />
+        <meshPhysicalMaterial color="#5c6690" roughness={0.45} metalness={0.35} clearcoat={0.4} clearcoatRoughness={0.3} />
       </RoundedBox>
+      {/* thin inlay strip along the top, catching the key light as a
+          soft highlight edge so the tray reads as one crafted object
+          rather than a flat-shaded block */}
+      <RoundedBox
+        args={[trayWidth - 0.14, 0.04, 0.86]}
+        radius={0.05}
+        position={[0, DISH_Y - 0.3 + 0.15, DISH_Z]}
+        receiveShadow
+      >
+        <meshPhysicalMaterial color="#7681b0" roughness={0.3} metalness={0.25} clearcoat={0.6} />
+      </RoundedBox>
+      <ContactShadows
+        position={[0, DISH_Y - 0.45, DISH_Z]}
+        opacity={0.45}
+        scale={trayWidth + 1.5}
+        blur={2.2}
+        far={1.2}
+      />
 
       {state.slots.map((_, i) => (
         <SlotRing key={i} position={slotPositions[i]} filled={state.slots[i] !== null} />
