@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Icosahedron, RoundedBox, Sphere } from "@react-three/drei";
+import { Billboard, Icosahedron, RoundedBox, Sphere } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -17,14 +17,13 @@ import {
 } from "../puzzles/soundForge";
 import { glyphTexture } from "../engine/glyphTexture";
 import { playPhoneme, playSolveSequence, preloadClips } from "../engine/audio";
-import { TapHint } from "../engine/TapHint";
 import { exposeTestHook } from "../engine/testHooks";
 
 const DISH_Y = 0.65;
 const DISH_Z = 1.6;
 const SLOT_Y = 1.55;
 const SLOT_Z = 0.2;
-const LANE_SPACING = 0.85;
+const LANE_SPACING = 1.05;
 const PEBBLE_RADIUS = 0.3;
 const FLIGHT_DURATION = 0.35;
 
@@ -36,23 +35,27 @@ function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-// A single word's letter count deterministically picks a hue so every
-// payoff crystal reads as distinct without per-word art.
-function hueForWord(wordId: string): number {
+// A hash-based hue clusters similar strings (e.g. "cat"/"c") together;
+// stepping by the golden ratio from a stable per-word offset instead
+// keeps letters within the same word visually well separated.
+function hueFor(wordId: string, index: number): number {
   let hash = 0;
   for (let i = 0; i < wordId.length; i++) hash = (hash * 31 + wordId.charCodeAt(i)) >>> 0;
-  return (hash % 360) / 360;
+  const base = (hash % 360) / 360;
+  return (base + index * 0.61803398875) % 1;
 }
 
 type PebbleProps = {
   grapheme: string;
+  hue: number;
   targetPos: readonly [number, number, number];
   wobbling: boolean;
   vanishing: boolean;
+  floating: boolean;
   onTap: () => void;
 };
 
-function Pebble({ grapheme, targetPos, wobbling, vanishing, onTap }: PebbleProps) {
+function Pebble({ grapheme, hue, targetPos, wobbling, vanishing, floating, onTap }: PebbleProps) {
   const groupRef = useRef<THREE.Group>(null);
   const startRef = useRef(new THREE.Vector3(...targetPos));
   const endRef = useRef(new THREE.Vector3(...targetPos));
@@ -60,7 +63,9 @@ function Pebble({ grapheme, targetPos, wobbling, vanishing, onTap }: PebbleProps
   const prevTarget = useRef(targetPos);
   const scaleRef = useRef(1);
   const pulseRef = useRef(0);
+  const bobPhase = useRef(Math.random() * Math.PI * 2); // desynced so tray pebbles don't bob in lockstep
   const texture = useMemo(() => glyphTexture(grapheme), [grapheme]);
+  const color = useMemo(() => new THREE.Color().setHSL(hue, 0.72, 0.62), [hue]);
 
   useEffect(() => {
     if (
@@ -80,6 +85,8 @@ function Pebble({ grapheme, targetPos, wobbling, vanishing, onTap }: PebbleProps
     onTap();
   }
 
+  const materialRef = useRef<THREE.MeshPhysicalMaterial>(null);
+
   useFrame((_, delta) => {
     const group = groupRef.current;
     if (!group) return;
@@ -91,6 +98,10 @@ function Pebble({ grapheme, targetPos, wobbling, vanishing, onTap }: PebbleProps
       group.position.y += Math.sin(Math.PI * progressRef.current) * 0.45; // arc peak mid-flight
     } else {
       group.position.copy(endRef.current);
+      // Every still-tappable pebble invites a tap with its own gentle
+      // bob — desynced per pebble — rather than a separate ring
+      // floating elsewhere that doesn't say which object it refers to.
+      if (floating) group.position.y += Math.sin(performance.now() * 0.0035 + bobPhase.current) * 0.06 + 0.06;
     }
 
     if (wobbling) {
@@ -103,17 +114,24 @@ function Pebble({ grapheme, targetPos, wobbling, vanishing, onTap }: PebbleProps
     const targetScale = vanishing ? 0 : 1 + pulseRef.current * 0.18;
     scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, vanishing ? 5 : 10, delta);
     group.scale.setScalar(scaleRef.current);
+
+    if (materialRef.current) {
+      const targetGlow = floating ? 0.22 + Math.sin(performance.now() * 0.0035 + bobPhase.current) * 0.12 : 0;
+      materialRef.current.emissiveIntensity = THREE.MathUtils.damp(materialRef.current.emissiveIntensity, targetGlow, 8, delta);
+    }
   });
 
   return (
     <group ref={groupRef} position={targetPos} onClick={(e) => { e.stopPropagation(); handleTap(); }}>
       <Icosahedron args={[PEBBLE_RADIUS, 0]} castShadow>
-        <meshPhysicalMaterial color="#c6a6ff" roughness={0.15} clearcoat={0.9} clearcoatRoughness={0.1} />
+        <meshPhysicalMaterial ref={materialRef} color={color} emissive="#fff3d6" emissiveIntensity={0} roughness={0.15} clearcoat={0.9} clearcoatRoughness={0.1} />
       </Icosahedron>
-      <mesh position={[0, 0, PEBBLE_RADIUS * 0.85]}>
-        <planeGeometry args={[0.34, 0.34]} />
-        <meshBasicMaterial map={texture} transparent depthWrite={false} />
-      </mesh>
+      <Billboard position={[0, 0, 0]}>
+        <mesh position={[0, 0, PEBBLE_RADIUS * 1.05]}>
+          <circleGeometry args={[PEBBLE_RADIUS * 0.42, 32]} />
+          <meshBasicMaterial map={texture} transparent depthWrite={false} />
+        </mesh>
+      </Billboard>
     </group>
   );
 }
@@ -135,7 +153,7 @@ function SlotRing({ position, filled }: { position: readonly [number, number, nu
 function PayoffObject({ wordId, visible }: { wordId: string; visible: boolean }) {
   const groupRef = useRef<THREE.Group>(null);
   const scaleRef = useRef(0);
-  const color = useMemo(() => new THREE.Color().setHSL(hueForWord(wordId), 0.55, 0.62), [wordId]);
+  const color = useMemo(() => new THREE.Color().setHSL(hueFor(wordId, 0), 0.55, 0.62), [wordId]);
 
   useFrame(({ clock }, delta) => {
     const group = groupRef.current;
@@ -223,8 +241,6 @@ export function SoundForgeScene() {
     [count]
   );
 
-  const noneSlotted = state.slots.every((s) => s === null);
-
   const trayWidth = laneX(count, count - 1) * 2 + 1.1;
 
   return (
@@ -238,18 +254,19 @@ export function SoundForgeScene() {
         <SlotRing key={i} position={slotPositions[i]} filled={state.slots[i] !== null} />
       ))}
 
-      {pebbles.map((p) => {
+      {pebbles.map((p, letterIndex) => {
         const trayIndex = state.tray.indexOf(p.id);
         const slotIndex = state.slots.indexOf(p.id);
         const pos = trayIndex !== -1 ? trayPositions[trayIndex] : slotPositions[slotIndex];
         return (
           <group key={p.id}>
-            {noneSlotted && trayIndex === 0 && !solved && <TapHint position={[pos[0], pos[1] + 0.5, pos[2]]} />}
             <Pebble
               grapheme={graphemeById.get(p.id) ?? p.grapheme}
+              hue={hueFor(state.wordId, letterIndex)}
               targetPos={pos}
               wobbling={wobble}
               vanishing={solved}
+              floating={trayIndex !== -1 && !solved}
               onTap={() => handlePebbleTap(p.id)}
             />
           </group>
