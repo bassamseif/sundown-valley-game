@@ -47,6 +47,7 @@ const PALM_PLACEMENTS = [
 export function Backdrop() {
   const sunLightRef = useRef<THREE.DirectionalLight>(null);
   const skyRef = useRef<{ material: THREE.ShaderMaterial } | null>(null);
+  const fogRef = useRef<THREE.FogExp2>(null);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
@@ -67,17 +68,30 @@ export function Backdrop() {
       sky.material.uniforms.turbidity.value = THREE.MathUtils.lerp(3, 8, setProgress);
       sky.material.uniforms.rayleigh.value = THREE.MathUtils.lerp(1.2, 3.2, setProgress);
     }
+
+    // Fog color tracks the same setProgress driving the sun/sky so it
+    // never mismatches the sky's actual rendered horizon hue — a fixed
+    // fog color was the real cause of the visible seam at the terrain's
+    // silhouette edge (fog density hides geometry, but only a color
+    // *match* hides the edge itself).
+    if (fogRef.current) {
+      fogRef.current.color.setHSL(
+        THREE.MathUtils.lerp(0.09, 0.05, setProgress),
+        0.55,
+        THREE.MathUtils.lerp(0.72, 0.58, setProgress)
+      );
+    }
   });
 
   return (
     <>
       {/* @ts-expect-error drei's Sky ref type doesn't expose .material, but it's a real THREE.Mesh */}
       <Sky ref={skyRef} distance={3000} mieCoefficient={0.01} mieDirectionalG={0.9} />
-      {/* far distance kept well inside the island mesh's own radius so
-          the terrain's finite edge is fully fogged out before the
-          camera can ever see it, instead of sitting right at the fog
-          boundary as a visible seam */}
-      <fog attach="fog" args={["#e8a374", 12, 26]} />
+      {/* Exponential-squared fog: no hard "far" cutoff radius (unlike
+          linear fog), so density ramps smoothly and is already
+          near-opaque well inside the island mesh's own edge
+          (DEEP_RADIUS = 26) — no fixed boundary for a seam to sit at. */}
+      <fogExp2 ref={fogRef} attach="fog" args={["#e8a374", 0.09]} />
 
       <hemisphereLight args={["#bfe0ff", "#caa06a", 0.7]} />
       <ambientLight intensity={0.4} color="#ffd9a8" />
