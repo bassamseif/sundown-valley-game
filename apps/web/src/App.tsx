@@ -41,10 +41,10 @@ export default function App() {
         <ErrorBoundary key={loop}>
           <SceneShell
             cameraPosition={
-              loop === "geometry" ? [0, 5.5, 8] : loop === "pipes" ? [0, 5.5, 9.5] : [0, 6, 11.5]
+              loop === "geometry" ? [0, 5.5, 8] : loop === "pipes" ? [4.5, 6.5, 7] : [0, 6, 11.5]
             }
-            target={loop === "geometry" ? [0, 0.6, -0.2] : [0, 0.6, 0]}
-            maxDistance={loop === "bridge" ? 20 : 16}
+            target={loop === "geometry" ? [0, 0.6, -0.2] : loop === "pipes" ? [0, 0.4, 0.3] : [0, 0.6, 0]}
+            maxDistance={loop === "bridge" ? 20 : loop === "pipes" ? 15 : 16}
           >
             {loop === "geometry" && <GeometryCombineScene />}
             {loop === "pipes" && <PipeAlignScene />}
