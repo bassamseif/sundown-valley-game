@@ -33,7 +33,14 @@ const GLASS_MATERIAL_PROPS = {
   clearcoat: 1,
   clearcoatRoughness: 0.08,
   side: THREE.DoubleSide,
-  depthWrite: false,
+  // depthWrite:false worked for a single straight tube, but the elbow
+  // has several overlapping transparent parts (joint sphere + two
+  // stubs) — without depth writes, three.js's transparent sort order
+  // isn't reliable across that many overlapping pieces and one stub
+  // was disappearing behind another. depthWrite:true fixes the
+  // occlusion at the cost of the glass not blending with itself where
+  // two glass surfaces overlap, which isn't visually noticeable here.
+  depthWrite: true,
 } as const;
 
 const WATER_MATERIAL_PROPS = {
