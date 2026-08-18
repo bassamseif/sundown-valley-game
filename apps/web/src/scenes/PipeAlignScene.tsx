@@ -7,7 +7,6 @@ import {
   GRID_POSITIONS,
   POOL_GRID_POS,
   SEGMENT_COUNT,
-  SPRING_GRID_POS,
   cellKind,
   initialOrientations,
   isCorrect,
@@ -259,16 +258,28 @@ export function PipeAlignScene() {
   const spacing = PIPE_LENGTH;
   const toWorld = (gx: number, gz: number) => [gx * spacing, gz * spacing] as const;
 
+  // Spring/pool spheres sit flush against the first/last pipe's outer
+  // flange (half a pipe length past that cell's center, plus the
+  // sphere's own radius) rather than a full grid cell away — the
+  // earlier grid-based placement left a visible floating gap between
+  // the tube ends and both spheres.
+  const SPHERE_RADIUS = 0.38;
+  const endOffset = PIPE_LENGTH / 2 + SPHERE_RADIUS;
+  const firstCell = toWorld(GRID_POSITIONS[0].x, GRID_POSITIONS[0].z);
+  const lastCell = toWorld(GRID_POSITIONS[SEGMENT_COUNT - 1].x, GRID_POSITIONS[SEGMENT_COUNT - 1].z);
+  const springWorld = [firstCell[0] - endOffset, firstCell[1]] as const; // west of cell 0
+  const poolWorld = [lastCell[0], lastCell[1] + endOffset] as const; // south of the last cell
+
   return (
     <group position={[-spacing * 0.5, 0.4, -spacing * 1.5]}>
       {/* spring */}
-      <group position={[toWorld(SPRING_GRID_POS.x, SPRING_GRID_POS.z)[0], 0, toWorld(SPRING_GRID_POS.x, SPRING_GRID_POS.z)[1]]}>
-        <Sphere args={[0.38, 32, 32]}>
+      <group position={[springWorld[0], 0, springWorld[1]]}>
+        <Sphere args={[SPHERE_RADIUS, 32, 32]}>
           <meshPhysicalMaterial color="#7fc4f0" emissive="#123a55" emissiveIntensity={0.35} roughness={0.2} clearcoat={0.8} />
         </Sphere>
       </group>
       {/* pool */}
-      <group position={[toWorld(POOL_GRID_POS.x, POOL_GRID_POS.z)[0], 0, toWorld(POOL_GRID_POS.x, POOL_GRID_POS.z)[1]]}>
+      <group position={[poolWorld[0], 0, poolWorld[1]]}>
         <Pool solved={solved} />
       </group>
 
