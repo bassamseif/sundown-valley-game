@@ -3,6 +3,7 @@ import { RoundedBox, Sphere } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import * as THREE from "three";
+import { WaterFlow } from "../engine/WaterFlow";
 import {
   SEGMENT_COUNT,
   initialOrientations,
@@ -108,21 +109,36 @@ export function PipeAlignScene() {
     exposeTestHook("pipes", { tap: tapSegment, reset, solved, orientations });
   });
 
-  const spacing = 1.35;
+  // Spacing equals the pipe's own length so adjacent open segments'
+  // flanges sit flush against each other — no visible gap once
+  // they're lined up, like real connected pipe.
+  const spacing = PIPE_LENGTH;
   const startX = -((SEGMENT_COUNT - 1) * spacing) / 2;
+  const endOffset = PIPE_LENGTH / 2 + 0.32; // spring/pool spheres sit just past the last flange, no gap
+
+  const flowCount = firstClosed === -1 ? SEGMENT_COUNT : firstClosed;
+  const springEdgeX = startX - endOffset + 0.38;
+  const flowEndX = flowCount === 0 ? springEdgeX : startX + (flowCount - 1) * spacing + PIPE_LENGTH / 2;
+  const poolEdgeX = startX + (SEGMENT_COUNT - 1) * spacing + endOffset - 0.38;
+  const flowLength = Math.max(0, (solved ? poolEdgeX : flowEndX) - springEdgeX);
 
   return (
     <group position={[0, 0.4, 0]}>
       {/* spring */}
-      <group position={[startX - 1.2, 0, 0]}>
+      <group position={[startX - endOffset, 0, 0]}>
         <Sphere args={[0.38, 32, 32]}>
           <meshPhysicalMaterial color="#7fc4f0" emissive="#123a55" emissiveIntensity={0.35} roughness={0.2} clearcoat={0.8} />
         </Sphere>
       </group>
       {/* pool */}
-      <group position={[startX + (SEGMENT_COUNT - 1) * spacing + 1.2, 0, 0]}>
+      <group position={[startX + (SEGMENT_COUNT - 1) * spacing + endOffset, 0, 0]}>
         <Pool solved={solved} />
       </group>
+
+      {/* riding just above the pipe's outer surface, not on its
+          centerline — droplets on the centerline are hidden behind the
+          opaque pipe wall for most of the run */}
+      <WaterFlow startX={springEdgeX} length={flowLength} y={PIPE_RADIUS + 0.07} />
 
       {orientations.map((o, i) => (
         <PipeSegment
