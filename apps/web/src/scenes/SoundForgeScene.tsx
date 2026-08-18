@@ -26,6 +26,12 @@ const SLOT_Z = 0.2;
 const LANE_SPACING = 1.05;
 const PEBBLE_RADIUS = 0.3;
 const FLIGHT_DURATION = 0.35;
+// A pebble's full radius is its vertical extent once rotated to face
+// the camera (not just its thin disc height) — seating it at DISH_Y
+// sank it into the tray platform by that radius. Seat it above the
+// tray's top surface instead, with a small gap.
+const TRAY_TOP_Y = DISH_Y - 0.15; // tray box: position DISH_Y-0.3, height 0.3
+const PEBBLE_SEAT_Y = TRAY_TOP_Y + PEBBLE_RADIUS + 0.03;
 
 function laneX(count: number, i: number) {
   return (i - (count - 1) / 2) * LANE_SPACING;
@@ -67,6 +73,7 @@ function Pebble({ grapheme, hue, targetPos, wobbling, vanishing, floating, onTap
   const colorMap = useMemo(() => engravedColorTexture(grapheme, hue), [grapheme, hue]);
   const bumpMap = useMemo(() => engravedBumpTexture(grapheme), [grapheme]);
   const glowMask = useMemo(() => engravedGlowMask(grapheme), [grapheme]);
+  const rimColor = useMemo(() => `#${new THREE.Color().setHSL(hue, 0.72, 0.62).getHexString()}`, [hue]);
 
   useEffect(() => {
     if (
@@ -87,6 +94,7 @@ function Pebble({ grapheme, hue, targetPos, wobbling, vanishing, floating, onTap
   }
 
   const materialRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  const rimMaterialRef = useRef<THREE.MeshPhysicalMaterial>(null);
 
   useFrame((_, delta) => {
     const group = groupRef.current;
@@ -119,6 +127,7 @@ function Pebble({ grapheme, hue, targetPos, wobbling, vanishing, floating, onTap
     if (materialRef.current) {
       const targetGlow = floating ? 0.22 + Math.sin(performance.now() * 0.0035 + bobPhase.current) * 0.12 : 0;
       materialRef.current.emissiveIntensity = THREE.MathUtils.damp(materialRef.current.emissiveIntensity, targetGlow, 8, delta);
+      if (rimMaterialRef.current) rimMaterialRef.current.emissiveIntensity = materialRef.current.emissiveIntensity;
     }
   });
 
@@ -126,18 +135,37 @@ function Pebble({ grapheme, hue, targetPos, wobbling, vanishing, floating, onTap
     <group ref={groupRef} position={targetPos} onClick={(e) => { e.stopPropagation(); handleTap(); }}>
       <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
         <cylinderGeometry args={[PEBBLE_RADIUS, PEBBLE_RADIUS, PEBBLE_RADIUS * 0.75, 32]} />
+        {/* side (rim) — plain crystal color, no letter: a cylinder's
+            map/bumpMap otherwise wrap the same texture around the
+            radial surface too, smearing the glyph around the edge */}
+        <meshPhysicalMaterial
+          ref={rimMaterialRef}
+          attach="material-0"
+          color={rimColor}
+          emissive="#fff3d6"
+          emissiveIntensity={0}
+          roughness={0.15}
+          metalness={0.2}
+          clearcoat={0.9}
+          clearcoatRoughness={0.06}
+        />
+        {/* top cap — faces the camera after the mesh's rotation; carries the engraved letter */}
         <meshPhysicalMaterial
           ref={materialRef}
+          attach="material-1"
           map={colorMap}
           bumpMap={bumpMap}
           bumpScale={0.11}
           emissive="#fff3d6"
           emissiveMap={glowMask}
           emissiveIntensity={0}
-          roughness={0.28}
-          clearcoat={0.55}
-          clearcoatRoughness={0.15}
+          roughness={0.15}
+          metalness={0.2}
+          clearcoat={0.9}
+          clearcoatRoughness={0.06}
         />
+        {/* bottom cap — never visible from the fixed camera; plain is fine */}
+        <meshPhysicalMaterial attach="material-2" color={rimColor} roughness={0.15} metalness={0.2} clearcoat={0.9} clearcoatRoughness={0.06} />
       </mesh>
     </group>
   );
@@ -240,7 +268,7 @@ export function SoundForgeScene() {
   });
 
   const trayPositions = useMemo(
-    () => Array.from({ length: count }, (_, i) => [laneX(count, i), DISH_Y, DISH_Z] as const),
+    () => Array.from({ length: count }, (_, i) => [laneX(count, i), PEBBLE_SEAT_Y, DISH_Z] as const),
     [count]
   );
   const slotPositions = useMemo(
