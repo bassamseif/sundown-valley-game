@@ -91,7 +91,7 @@ export function Backdrop() {
           linear fog), so density ramps smoothly and is already
           near-opaque well inside the island mesh's own edge
           (DEEP_RADIUS = 26) — no fixed boundary for a seam to sit at. */}
-      <fogExp2 ref={fogRef} attach="fog" args={["#e8a374", 0.09]} />
+      <fogExp2 ref={fogRef} attach="fog" args={["#e8a374", 0.045]} />
 
       <hemisphereLight args={["#bfe0ff", "#caa06a", 0.7]} />
       <ambientLight intensity={0.4} color="#ffd9a8" />
