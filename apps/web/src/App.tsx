@@ -3,9 +3,10 @@ import { ErrorBoundary } from "./engine/ErrorBoundary";
 import { SceneShell } from "./engine/SceneShell";
 import { GeometryCombineScene } from "./scenes/GeometryCombineScene";
 import { PipeAlignScene } from "./scenes/PipeAlignScene";
+import { SoundForgeScene } from "./scenes/SoundForgeScene";
 import { StructuralBridgeScene } from "./scenes/StructuralBridgeScene";
 
-type Loop = "geometry" | "pipes" | "bridge";
+type Loop = "geometry" | "pipes" | "bridge" | "forge";
 
 const LOOPS: { id: Loop; label: string; icon: string; gradient: string; instruction: string }[] = [
   {
@@ -29,6 +30,13 @@ const LOOPS: { id: Loop; label: string; icon: string; gradient: string; instruct
     gradient: "linear-gradient(135deg, #ffb570, #c6a6ff)",
     instruction: "Tap a plank to pick it up, then tap the gap it fits. Fill both gaps to send the ball across.",
   },
+  {
+    id: "forge",
+    label: "Sound Forge",
+    icon: "✦",
+    gradient: "linear-gradient(135deg, #7fe3c9, #ffb570)",
+    instruction: "Tap a pebble to place it in the next open slot. Line up the sounds to build the word.",
+  },
 ];
 
 export default function App() {
@@ -41,14 +49,29 @@ export default function App() {
         <ErrorBoundary key={loop}>
           <SceneShell
             cameraPosition={
-              loop === "geometry" ? [0, 5.5, 8] : loop === "pipes" ? [4.5, 6.5, 7] : [0, 6, 11.5]
+              loop === "geometry"
+                ? [0, 5.5, 8]
+                : loop === "pipes"
+                ? [4.5, 6.5, 7]
+                : loop === "forge"
+                ? [0, 4.5, 6.5]
+                : [0, 6, 11.5]
             }
-            target={loop === "geometry" ? [0, 0.6, -0.2] : loop === "pipes" ? [0, 0.4, 0.3] : [0, 0.6, 0]}
-            maxDistance={loop === "bridge" ? 20 : loop === "pipes" ? 15 : 16}
+            target={
+              loop === "geometry"
+                ? [0, 0.6, -0.2]
+                : loop === "pipes"
+                ? [0, 0.4, 0.3]
+                : loop === "forge"
+                ? [0, 0.9, 0.5]
+                : [0, 0.6, 0]
+            }
+            maxDistance={loop === "bridge" ? 20 : loop === "pipes" ? 15 : loop === "forge" ? 14 : 16}
           >
             {loop === "geometry" && <GeometryCombineScene />}
             {loop === "pipes" && <PipeAlignScene />}
             {loop === "bridge" && <StructuralBridgeScene />}
+            {loop === "forge" && <SoundForgeScene />}
           </SceneShell>
         </ErrorBoundary>
       )}

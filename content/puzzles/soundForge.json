@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "words": [
+    { "id": "cat", "graphemes": ["c", "a", "t"], "phonemes": ["ph_c", "ph_a", "ph_t"], "wordAudio": "word_cat", "modelId": "model_cat" },
+    { "id": "dog", "graphemes": ["d", "o", "g"], "phonemes": ["ph_d", "ph_o", "ph_g"], "wordAudio": "word_dog", "modelId": "model_dog" },
+    { "id": "sun", "graphemes": ["s", "u", "n"], "phonemes": ["ph_s", "ph_u", "ph_n"], "wordAudio": "word_sun", "modelId": "model_sun" },
+    { "id": "pig", "graphemes": ["p", "i", "g"], "phonemes": ["ph_p", "ph_i", "ph_g"], "wordAudio": "word_pig", "modelId": "model_pig" },
+    { "id": "bug", "graphemes": ["b", "u", "g"], "phonemes": ["ph_b", "ph_u", "ph_g"], "wordAudio": "word_bug", "modelId": "model_bug" },
+    { "id": "hat", "graphemes": ["h", "a", "t"], "phonemes": ["ph_h", "ph_a", "ph_t"], "wordAudio": "word_hat", "modelId": "model_hat" },
+    { "id": "mud", "graphemes": ["m", "u", "d"], "phonemes": ["ph_m", "ph_u", "ph_d"], "wordAudio": "word_mud", "modelId": "model_mud" },
+    { "id": "pot", "graphemes": ["p", "o", "t"], "phonemes": ["ph_p", "ph_o", "ph_t"], "wordAudio": "word_pot", "modelId": "model_pot" },
+    { "id": "bed", "graphemes": ["b", "e", "d"], "phonemes": ["ph_b", "ph_e", "ph_d"], "wordAudio": "word_bed", "modelId": "model_bed" },
+    { "id": "fin", "graphemes": ["f", "i", "n"], "phonemes": ["ph_f", "ph_i", "ph_n"], "wordAudio": "word_fin", "modelId": "model_fin" },
+    { "id": "top", "graphemes": ["t", "o", "p"], "phonemes": ["ph_t", "ph_o", "ph_p"], "wordAudio": "word_top", "modelId": "model_top" },
+    { "id": "net", "graphemes": ["n", "e", "t"], "phonemes": ["ph_n", "ph_e", "ph_t"], "wordAudio": "word_net", "modelId": "model_net" }
+  ]
+}

@@ -16,12 +16,13 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("menu renders all three loops with no console errors", async ({ page }) => {
+test("menu renders all four loops with no console errors", async ({ page }) => {
   const errors = trackErrors(page);
   await expect(page.getByText("Choose a test loop")).toBeVisible();
   await expect(page.getByRole("button", { name: "Geometry Combining" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Water Pipe Alignment" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Structural Bridge" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sound Forge" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -122,8 +123,58 @@ test("structural bridge: wrong-length plank is rejected by the slot", async ({ p
   expect(filled.s2).toBeNull();
 });
 
+test("sound forge: placing pebbles in the correct order solves the word", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.getByRole("button", { name: "Sound Forge" }).click();
+  await expect(page.locator("canvas")).toBeVisible();
+  await page.waitForFunction(() => (window as any).__sv?.forge !== undefined);
+
+  // correctOrder is exposed precisely so this test doesn't need to know
+  // the seeded shuffle — mirrors the pipe-alignment test's approach.
+  const correctOrder: string[] = await page.evaluate(() => (window as any).__sv.forge.correctOrder);
+  for (const pebbleId of correctOrder) {
+    await page.evaluate((id) => (window as any).__sv.forge.tapPebble(id), pebbleId);
+    await page.waitForTimeout(80);
+  }
+
+  await page.waitForFunction(() => (window as any).__sv.forge.solved === true);
+  const solved = await page.evaluate(() => (window as any).__sv.forge.solved);
+  expect(solved).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("sound forge: a wrong order does not solve and stays retryable", async ({ page }) => {
+  await page.getByRole("button", { name: "Sound Forge" }).click();
+  await page.waitForFunction(() => (window as any).__sv?.forge !== undefined);
+
+  const correctOrder: string[] = await page.evaluate(() => (window as any).__sv.forge.correctOrder);
+  const reversed = correctOrder.slice().reverse();
+  for (const pebbleId of reversed) {
+    await page.evaluate((id) => (window as any).__sv.forge.tapPebble(id), pebbleId);
+    await page.waitForTimeout(80);
+  }
+
+  const solvedAfterWrong = await page.evaluate(() => (window as any).__sv.forge.solved);
+  expect(solvedAfterWrong).toBe(false);
+
+  // pull every pebble back out, then re-place in the correct order
+  const slotCount = correctOrder.length;
+  for (let i = 0; i < slotCount; i++) {
+    await page.evaluate((idx) => (window as any).__sv.forge.tapSlot(idx), i);
+    await page.waitForTimeout(80);
+  }
+  for (const pebbleId of correctOrder) {
+    await page.evaluate((id) => (window as any).__sv.forge.tapPebble(id), pebbleId);
+    await page.waitForTimeout(80);
+  }
+
+  await page.waitForFunction(() => (window as any).__sv.forge.solved === true);
+  const solved = await page.evaluate(() => (window as any).__sv.forge.solved);
+  expect(solved).toBe(true);
+});
+
 test("back button returns to the menu from every loop", async ({ page }) => {
-  for (const name of ["Geometry Combining", "Water Pipe Alignment", "Structural Bridge"]) {
+  for (const name of ["Geometry Combining", "Water Pipe Alignment", "Structural Bridge", "Sound Forge"]) {
     await page.getByRole("button", { name }).click();
     await expect(page.locator("canvas")).toBeVisible();
     await page.getByRole("button", { name: "← Loops" }).click();
