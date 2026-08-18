@@ -7,11 +7,23 @@ import * as THREE from "three";
 const colorCache = new Map<string, THREE.CanvasTexture>();
 const bumpCache = new Map<string, THREE.CanvasTexture>();
 
+// CylinderGeometry's cap UVs don't line up with world "up" once the
+// pebble mesh is rotated to face the camera — baked upright text came
+// out sideways. Pre-rotating the glyph inside the canvas (rather than
+// via Texture.rotation, which would also need a matching center/offset
+// on every one of the three textures) fixes it once, here.
+const CAP_TEXT_ROTATION = -Math.PI / 2;
+
 function drawLetter(ctx: CanvasRenderingContext2D, letter: string, size: number) {
   ctx.font = `800 ${size * 0.6}px system-ui, -apple-system, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  ctx.save();
+  ctx.translate(size / 2, size / 2);
+  ctx.rotate(CAP_TEXT_ROTATION);
+  ctx.translate(-size / 2, -size / 2);
   ctx.fillText(letter, size / 2, size / 2 + size * 0.03);
+  ctx.restore();
 }
 
 export function engravedColorTexture(grapheme: string, hue: number): THREE.CanvasTexture {
