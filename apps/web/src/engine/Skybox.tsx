@@ -61,15 +61,15 @@ export function Skybox() {
     uniforms.uSunDir.value.copy(dir);
     uniforms.uZenith.value.setHSL(
       THREE.MathUtils.lerp(0.58, 0.66, setProgress),
-      THREE.MathUtils.lerp(0.55, 0.45, setProgress),
-      THREE.MathUtils.lerp(0.78, 0.3, setProgress)
+      THREE.MathUtils.lerp(0.68, 0.6, setProgress),
+      THREE.MathUtils.lerp(0.72, 0.3, setProgress)
     );
     uniforms.uHorizon.value.setHSL(
-      THREE.MathUtils.lerp(0.13, 0.05, setProgress),
-      THREE.MathUtils.lerp(0.55, 0.85, setProgress),
-      THREE.MathUtils.lerp(0.9, 0.62, setProgress)
+      THREE.MathUtils.lerp(0.11, 0.05, setProgress),
+      THREE.MathUtils.lerp(0.7, 0.95, setProgress),
+      THREE.MathUtils.lerp(0.85, 0.6, setProgress)
     );
-    uniforms.uGround.value.setHSL(THREE.MathUtils.lerp(0.1, 0.04, setProgress), 0.4, THREE.MathUtils.lerp(0.68, 0.42, setProgress));
+    uniforms.uGround.value.setHSL(THREE.MathUtils.lerp(0.09, 0.04, setProgress), 0.55, THREE.MathUtils.lerp(0.62, 0.4, setProgress));
     uniforms.uSunColor.value.setHSL(
       THREE.MathUtils.lerp(0.14, 0.06, setProgress),
       0.9,

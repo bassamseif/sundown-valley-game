@@ -42,7 +42,7 @@ export function Backdrop() {
 
     if (sunLightRef.current) {
       sunLightRef.current.position.copy(dir).multiplyScalar(30);
-      sunLightRef.current.intensity = THREE.MathUtils.lerp(1.7, 0.75, setProgress);
+      sunLightRef.current.intensity = THREE.MathUtils.lerp(2.1, 1.0, setProgress);
       sunLightRef.current.color.setHSL(THREE.MathUtils.lerp(0.14, 0.03, setProgress), 0.85, 0.62);
     }
 
@@ -52,9 +52,9 @@ export function Backdrop() {
     // hides geometry, but only a color *match* hides the edge itself.
     if (fogRef.current) {
       fogRef.current.color.setHSL(
-        THREE.MathUtils.lerp(0.13, 0.05, setProgress),
-        THREE.MathUtils.lerp(0.55, 0.85, setProgress),
-        THREE.MathUtils.lerp(0.9, 0.62, setProgress)
+        THREE.MathUtils.lerp(0.11, 0.05, setProgress),
+        THREE.MathUtils.lerp(0.7, 0.95, setProgress),
+        THREE.MathUtils.lerp(0.85, 0.6, setProgress)
       );
     }
   });
@@ -66,10 +66,14 @@ export function Backdrop() {
           linear fog), so density ramps smoothly and is already
           near-opaque well inside the island mesh's own edge
           (DEEP_RADIUS = 26) — no fixed boundary for a seam to sit at. */}
-      <fogExp2 ref={fogRef} attach="fog" args={["#e8a374", 0.035]} />
+      <fogExp2 ref={fogRef} attach="fog" args={["#e8a374", 0.022]} />
 
-      <hemisphereLight args={["#bfe0ff", "#caa06a", 0.7]} />
-      <ambientLight intensity={0.4} color="#ffd9a8" />
+      {/* Lower ambient/hemisphere than a typical setup — too much flat
+          fill light is what was washing every material's color out to
+          pastel; letting the directional light do more of the work
+          keeps colors reading as saturated hues instead of tints. */}
+      <hemisphereLight args={["#bfe0ff", "#caa06a", 0.45]} />
+      <ambientLight intensity={0.25} color="#ffd9a8" />
       <directionalLight ref={sunLightRef} castShadow shadow-mapSize={[1024, 1024]}>
         <orthographicCamera attach="shadow-camera" args={[-14, 14, 14, -14, 0.5, 60]} />
       </directionalLight>
