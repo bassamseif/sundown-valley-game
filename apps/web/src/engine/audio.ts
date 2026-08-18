@@ -1,17 +1,52 @@
-// A tiny local playback helper for Sound Forge's phoneme/word sounds.
-// Real recorded clips must be bundled and imported through Vite — no
-// runtime URL construction, no CDN, no fetch to any third-party host.
-// Precedent: Environment(preset="sunset") fetched an HDR from GitHub,
-// hung forever on a bad connection, and blanked the whole scene via
-// React Suspense.
+// A tiny local playback helper for Sound Forge's phoneme/word clips.
+// Every clip is bundled and imported through Vite — no runtime URL
+// construction, no CDN, no fetch to any third-party host. Precedent:
+// Environment(preset="sunset") fetched an HDR from GitHub, hung
+// forever on a bad connection, and blanked the whole scene via React
+// Suspense. Loading these below the same way (a static import that
+// Vite resolves to a hashed same-origin asset URL at build time) never
+// touches the network at runtime.
 //
-// No recorded phoneme clips exist in the repo yet, so CLIP_MAP is
-// empty and playback falls back to a synthesized tone (Web Audio
-// oscillator, generated in code — no asset file, no network request).
-// This keeps the puzzle audibly responsive today; once real clips
-// land, populate CLIP_MAP and this same call plays them instead.
+// Clips are synthesized offline with espeak-ng and committed as small
+// mono MP3s (src/assets/audio/**) — no professional voice recording
+// exists for this project, so this is the actual, intelligible speech
+// audio that ships, not a placeholder. Swapping in real recordings
+// later is a matter of replacing these files; nothing else changes.
+import ph_a from "../assets/audio/phonemes/a.mp3";
+import ph_b from "../assets/audio/phonemes/b.mp3";
+import ph_c from "../assets/audio/phonemes/c.mp3";
+import ph_d from "../assets/audio/phonemes/d.mp3";
+import ph_e from "../assets/audio/phonemes/e.mp3";
+import ph_f from "../assets/audio/phonemes/f.mp3";
+import ph_g from "../assets/audio/phonemes/g.mp3";
+import ph_h from "../assets/audio/phonemes/h.mp3";
+import ph_i from "../assets/audio/phonemes/i.mp3";
+import ph_m from "../assets/audio/phonemes/m.mp3";
+import ph_n from "../assets/audio/phonemes/n.mp3";
+import ph_o from "../assets/audio/phonemes/o.mp3";
+import ph_p from "../assets/audio/phonemes/p.mp3";
+import ph_s from "../assets/audio/phonemes/s.mp3";
+import ph_t from "../assets/audio/phonemes/t.mp3";
+import ph_u from "../assets/audio/phonemes/u.mp3";
+
+import word_bed from "../assets/audio/words/bed.mp3";
+import word_bug from "../assets/audio/words/bug.mp3";
+import word_cat from "../assets/audio/words/cat.mp3";
+import word_dog from "../assets/audio/words/dog.mp3";
+import word_fin from "../assets/audio/words/fin.mp3";
+import word_hat from "../assets/audio/words/hat.mp3";
+import word_mud from "../assets/audio/words/mud.mp3";
+import word_net from "../assets/audio/words/net.mp3";
+import word_pig from "../assets/audio/words/pig.mp3";
+import word_pot from "../assets/audio/words/pot.mp3";
+import word_sun from "../assets/audio/words/sun.mp3";
+import word_top from "../assets/audio/words/top.mp3";
+
+// Keyed by the phoneme/word ids used in content/puzzles/soundForge.json
+// ("ph_c", "word_cat", ...).
 const CLIP_MAP: Record<string, string> = {
-  // "ph_c": clipUrl, ...  — populate once real audio assets exist.
+  ph_a, ph_b, ph_c, ph_d, ph_e, ph_f, ph_g, ph_h, ph_i, ph_m, ph_n, ph_o, ph_p, ph_s, ph_t, ph_u,
+  word_bed, word_bug, word_cat, word_dog, word_fin, word_hat, word_mud, word_net, word_pig, word_pot, word_sun, word_top,
 };
 
 const bufferCache = new Map<string, AudioBuffer>();
@@ -58,20 +93,24 @@ async function loadClip(id: string): Promise<AudioBuffer | null> {
 }
 
 export async function preloadClips(ids: string[]): Promise<void> {
-  await Promise.all(ids.map((id) => (CLIP_MAP[id] ? loadClip(id) : Promise.resolve(null))));
+  await Promise.all(ids.map(loadClip));
 }
 
-// A pleasant pentatonic scale (no jarring intervals) — a phoneme id is
-// hashed onto a scale degree so every letter gets a distinct, stable
-// pitch across replays without sounding random or dissonant together.
-const PENTATONIC = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25];
+function playBuffer(audioCtx: AudioContext, buffer: AudioBuffer) {
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  source.start();
+}
 
+// Short synthesized fallback tone — used only if a clip is missing or
+// fails to decode, so a tap is never completely silent.
+const PENTATONIC = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25];
 function freqForId(id: string): number {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
   return PENTATONIC[hash % PENTATONIC.length];
 }
-
 function playTone(audioCtx: AudioContext, freq: number, startAt: number, duration = 0.22, peakGain = 0.22) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -86,36 +125,31 @@ function playTone(audioCtx: AudioContext, freq: number, startAt: number, duratio
   osc.stop(startAt + duration + 0.02);
 }
 
-/** Plays a phoneme's clip if one is bundled, otherwise a short synthesized tone. */
+/** Plays a phoneme's real clip, e.g. "ph_c" — falls back to a tone if it's missing/fails to decode. */
 export async function playPhoneme(id: string): Promise<void> {
   const audioCtx = getContext();
   if (!audioCtx) return;
   await ensureRunning(audioCtx);
 
-  if (CLIP_MAP[id]) {
-    const buffer = await loadClip(id);
-    if (buffer) {
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioCtx.destination);
-      source.start();
-      return;
-    }
+  const buffer = await loadClip(id);
+  if (buffer) {
+    playBuffer(audioCtx, buffer);
+    return;
   }
   playTone(audioCtx, freqForId(id), audioCtx.currentTime);
 }
 
-/** Solved-word payoff: a quick rising arpeggio through the phonemes, landing on a bright chord. */
-export async function playWordChime(phonemeIds: string[]): Promise<void> {
+/** Solved-word payoff: the real word clip, e.g. "word_cat" — falls back to a little chord if missing. */
+export async function playWordClip(id: string): Promise<void> {
   const audioCtx = getContext();
   if (!audioCtx) return;
   await ensureRunning(audioCtx);
 
+  const buffer = await loadClip(id);
+  if (buffer) {
+    playBuffer(audioCtx, buffer);
+    return;
+  }
   const now = audioCtx.currentTime;
-  const step = 0.11;
-  phonemeIds.forEach((id, i) => {
-    playTone(audioCtx, freqForId(id), now + i * step, 0.18, 0.18);
-  });
-  const chordAt = now + phonemeIds.length * step;
-  [523.25, 659.25, 783.99].forEach((freq) => playTone(audioCtx, freq, chordAt, 0.5, 0.16));
+  [523.25, 659.25, 783.99].forEach((freq, i) => playTone(audioCtx, freq, now + i * 0.09, 0.4, 0.16));
 }
