@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Billboard, Icosahedron, RoundedBox, Sphere } from "@react-three/drei";
+import { RoundedBox, Sphere } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -15,7 +15,7 @@ import {
   wordById,
   type ForgeState,
 } from "../puzzles/soundForge";
-import { glyphTexture } from "../engine/glyphTexture";
+import { engravedBumpTexture, engravedColorTexture, engravedGlowMask } from "../engine/engravedTexture";
 import { playPhoneme, playSolveSequence, preloadClips } from "../engine/audio";
 import { exposeTestHook } from "../engine/testHooks";
 
@@ -64,8 +64,9 @@ function Pebble({ grapheme, hue, targetPos, wobbling, vanishing, floating, onTap
   const scaleRef = useRef(1);
   const pulseRef = useRef(0);
   const bobPhase = useRef(Math.random() * Math.PI * 2); // desynced so tray pebbles don't bob in lockstep
-  const texture = useMemo(() => glyphTexture(grapheme), [grapheme]);
-  const color = useMemo(() => new THREE.Color().setHSL(hue, 0.72, 0.62), [hue]);
+  const colorMap = useMemo(() => engravedColorTexture(grapheme, hue), [grapheme, hue]);
+  const bumpMap = useMemo(() => engravedBumpTexture(grapheme), [grapheme]);
+  const glowMask = useMemo(() => engravedGlowMask(grapheme), [grapheme]);
 
   useEffect(() => {
     if (
@@ -123,15 +124,21 @@ function Pebble({ grapheme, hue, targetPos, wobbling, vanishing, floating, onTap
 
   return (
     <group ref={groupRef} position={targetPos} onClick={(e) => { e.stopPropagation(); handleTap(); }}>
-      <Icosahedron args={[PEBBLE_RADIUS, 0]} castShadow>
-        <meshPhysicalMaterial ref={materialRef} color={color} emissive="#fff3d6" emissiveIntensity={0} roughness={0.15} clearcoat={0.9} clearcoatRoughness={0.1} />
-      </Icosahedron>
-      <Billboard position={[0, 0, 0]}>
-        <mesh position={[0, 0, PEBBLE_RADIUS * 1.05]}>
-          <circleGeometry args={[PEBBLE_RADIUS * 0.42, 32]} />
-          <meshBasicMaterial map={texture} transparent depthWrite={false} />
-        </mesh>
-      </Billboard>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[PEBBLE_RADIUS, PEBBLE_RADIUS, PEBBLE_RADIUS * 0.75, 32]} />
+        <meshPhysicalMaterial
+          ref={materialRef}
+          map={colorMap}
+          bumpMap={bumpMap}
+          bumpScale={0.11}
+          emissive="#fff3d6"
+          emissiveMap={glowMask}
+          emissiveIntensity={0}
+          roughness={0.28}
+          clearcoat={0.55}
+          clearcoatRoughness={0.15}
+        />
+      </mesh>
     </group>
   );
 }
@@ -245,6 +252,13 @@ export function SoundForgeScene() {
 
   return (
     <group>
+      {/* The backdrop's single moody sunset light left the engraved
+          pebbles dark with a harsh hotspot. A soft key + fill + rim
+          local to this scene reads the carved letters clearly from any
+          angle without touching the shared environment lighting. */}
+      <pointLight position={[-1.5, 4, 3]} intensity={3} color="#fff3e0" />
+      <pointLight position={[2, 3.5, 2.5]} intensity={1.8} color="#cfe8ff" />
+
       {/* tray */}
       <RoundedBox args={[trayWidth, 0.3, 1.0]} radius={0.1} position={[0, DISH_Y - 0.3, DISH_Z]} receiveShadow>
         <meshStandardMaterial color="#5c6690" roughness={0.6} metalness={0.2} />
