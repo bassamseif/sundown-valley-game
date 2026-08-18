@@ -96,11 +96,15 @@ export async function preloadClips(ids: string[]): Promise<void> {
   await Promise.all(ids.map(loadClip));
 }
 
-function playBuffer(audioCtx: AudioContext, buffer: AudioBuffer) {
+function playBufferAt(audioCtx: AudioContext, buffer: AudioBuffer, when: number) {
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
   source.connect(audioCtx.destination);
-  source.start();
+  source.start(when);
+}
+
+function playBuffer(audioCtx: AudioContext, buffer: AudioBuffer) {
+  playBufferAt(audioCtx, buffer, audioCtx.currentTime);
 }
 
 // Short synthesized fallback tone — used only if a clip is missing or
@@ -139,17 +143,48 @@ export async function playPhoneme(id: string): Promise<void> {
   playTone(audioCtx, freqForId(id), audioCtx.currentTime);
 }
 
-/** Solved-word payoff: the real word clip, e.g. "word_cat" — falls back to a little chord if missing. */
-export async function playWordClip(id: string): Promise<void> {
+// A short rising major arpeggio (C5-E5-G5-C6) — a "ta-da", not a
+// single beep — with each note overlapping the next slightly so it
+// reads as one bright gesture rather than separate blips.
+function playSuccessChime(audioCtx: AudioContext, startAt: number): number {
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+  const step = 0.09;
+  notes.forEach((freq, i) => {
+    const duration = i === notes.length - 1 ? 0.32 : 0.16;
+    const peakGain = i === notes.length - 1 ? 0.24 : 0.18;
+    playTone(audioCtx, freq, startAt + i * step, duration, peakGain);
+  });
+  return startAt + (notes.length - 1) * step + 0.32;
+}
+
+/**
+ * The tap that completes a word: the last phoneme, then a success
+ * chime, then the whole word — scheduled back-to-back on the audio
+ * clock (not fired as three independent calls) so nothing overlaps or
+ * gets cut off, and the phoneme is never skipped.
+ */
+export async function playSolveSequence(phonemeId: string, wordId: string): Promise<void> {
   const audioCtx = getContext();
   if (!audioCtx) return;
   await ensureRunning(audioCtx);
 
-  const buffer = await loadClip(id);
-  if (buffer) {
-    playBuffer(audioCtx, buffer);
-    return;
+  const [phonemeBuf, wordBuf] = await Promise.all([loadClip(phonemeId), loadClip(wordId)]);
+  const gap = 0.15;
+  let t = audioCtx.currentTime;
+
+  if (phonemeBuf) {
+    playBufferAt(audioCtx, phonemeBuf, t);
+    t += phonemeBuf.duration + gap;
+  } else {
+    playTone(audioCtx, freqForId(phonemeId), t);
+    t += 0.22 + gap;
   }
-  const now = audioCtx.currentTime;
-  [523.25, 659.25, 783.99].forEach((freq, i) => playTone(audioCtx, freq, now + i * 0.09, 0.4, 0.16));
+
+  t = playSuccessChime(audioCtx, t) + gap;
+
+  if (wordBuf) {
+    playBufferAt(audioCtx, wordBuf, t);
+  } else {
+    [523.25, 659.25, 783.99].forEach((freq, i) => playTone(audioCtx, freq, t + i * 0.09, 0.4, 0.16));
+  }
 }

@@ -16,7 +16,7 @@ import {
   type ForgeState,
 } from "../puzzles/soundForge";
 import { glyphTexture } from "../engine/glyphTexture";
-import { playPhoneme, playWordClip, preloadClips } from "../engine/audio";
+import { playPhoneme, playSolveSequence, preloadClips } from "../engine/audio";
 import { TapHint } from "../engine/TapHint";
 import { exposeTestHook } from "../engine/testHooks";
 
@@ -174,14 +174,6 @@ export function SoundForgeScene() {
     void preloadClips([...pebbles.map((p) => p.phoneme), wordAudioId]);
   }, [pebbles, wordAudioId]);
 
-  const prevSolved = useRef(false);
-  useEffect(() => {
-    if (solved && !prevSolved.current) {
-      void playWordClip(wordAudioId);
-    }
-    prevSolved.current = solved;
-  }, [solved, wordAudioId]);
-
   function handlePebbleTap(pebbleId: string) {
     if (solved) return;
     const slotIndex = state.slots.indexOf(pebbleId);
@@ -191,9 +183,18 @@ export function SoundForgeScene() {
       setState((s) => tapSlot(s, slotIndex));
       return;
     }
+
     const pebble = pebbles.find((p) => p.id === pebbleId);
-    if (pebble) void playPhoneme(pebble.phoneme);
-    setState((s) => tapPebble(s, pebbleId));
+    const next = tapPebble(state, pebbleId);
+    // This tap is the one that completes the word — play its phoneme,
+    // a success chime, then the word, scheduled back-to-back so the
+    // letter is never skipped or overlapped by the word coming in.
+    if (pebble && isSolved(next)) {
+      void playSolveSequence(pebble.phoneme, wordAudioId);
+    } else if (pebble) {
+      void playPhoneme(pebble.phoneme);
+    }
+    setState(next);
   }
 
   function nextWord() {
