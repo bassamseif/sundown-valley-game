@@ -33,14 +33,12 @@ const GLASS_MATERIAL_PROPS = {
   clearcoat: 1,
   clearcoatRoughness: 0.08,
   side: THREE.DoubleSide,
-  // depthWrite:false worked for a single straight tube, but the elbow
-  // has several overlapping transparent parts (joint sphere + two
-  // stubs) — without depth writes, three.js's transparent sort order
-  // isn't reliable across that many overlapping pieces and one stub
-  // was disappearing behind another. depthWrite:true fixes the
-  // occlusion at the cost of the glass not blending with itself where
-  // two glass surfaces overlap, which isn't visually noticeable here.
-  depthWrite: true,
+  // Keep depthWrite off so the opaque water core inside stays visibly
+  // "within" the glass rather than getting occluded by the glass's own
+  // near/far surfaces. The elbow's overlapping glass parts (joint +
+  // two stubs) are instead kept stable via explicit renderOrder below,
+  // rather than depthWrite, which broke water-in-tube visibility.
+  depthWrite: false,
 } as const;
 
 const WATER_MATERIAL_PROPS = {
@@ -123,7 +121,7 @@ function StraightPipe({ x, z, index, targetAngle, settledRef, fillFracRef, onTap
       {showHint && <TapHint position={[0, 0.14, 0]} />}
       <group ref={groupRef} onClick={(e) => { e.stopPropagation(); onTap(); }}>
         <mesh rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
-          <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, PIPE_LENGTH, 20, 1, true]} />
+          <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, PIPE_LENGTH, 20, 1, false]} />
           <meshPhysicalMaterial {...GLASS_MATERIAL_PROPS} />
         </mesh>
         <mesh ref={waterRef} rotation={[0, 0, Math.PI / 2]} scale={[1, 0.001, 1]}>
@@ -180,13 +178,13 @@ function ElbowPipe({ x, z, index, targetAngle, settledRef, fillFracRef, onTap, s
       {showHint && <TapHint position={[0, 0.14, 0]} />}
       <group ref={groupRef} onClick={(e) => { e.stopPropagation(); onTap(); }}>
         {/* corner joint */}
-        <mesh castShadow>
+        <mesh castShadow renderOrder={1}>
           <sphereGeometry args={[PIPE_RADIUS * 1.05, 16, 16]} />
           <meshPhysicalMaterial {...GLASS_MATERIAL_PROPS} />
         </mesh>
         {/* East stub */}
-        <mesh position={[STUB_LEN / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
-          <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, STUB_LEN, 20, 1, true]} />
+        <mesh position={[STUB_LEN / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow renderOrder={2}>
+          <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, STUB_LEN, 20, 1, false]} />
           <meshPhysicalMaterial {...GLASS_MATERIAL_PROPS} />
         </mesh>
         <mesh ref={waterERef} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]} scale={[1, 0.001, 1]}>
@@ -198,8 +196,8 @@ function ElbowPipe({ x, z, index, targetAngle, settledRef, fillFracRef, onTap, s
           <meshStandardMaterial {...FLANGE_MATERIAL_PROPS} />
         </mesh>
         {/* North stub */}
-        <mesh position={[0, 0, -STUB_LEN / 2]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, STUB_LEN, 20, 1, true]} />
+        <mesh position={[0, 0, -STUB_LEN / 2]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow renderOrder={3}>
+          <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, STUB_LEN, 20, 1, false]} />
           <meshPhysicalMaterial {...GLASS_MATERIAL_PROPS} />
         </mesh>
         <mesh ref={waterNRef} position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 0.001, 1]}>
