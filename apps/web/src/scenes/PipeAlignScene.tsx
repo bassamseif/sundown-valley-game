@@ -66,16 +66,32 @@ function PipeSegment({
   // flat along the pipeline, closed stands straight up, both clearly
   // legible silhouettes.
   const targetRotZ = open ? Math.PI / 2 : 0;
+  const FULL_LEN = PIPE_LENGTH * 0.96;
 
   useFrame((_, delta) => {
+    let settled = false;
     if (groupRef.current) {
-      groupRef.current.rotation.z = THREE.MathUtils.damp(groupRef.current.rotation.z, targetRotZ, 10, delta);
+      const rot = THREE.MathUtils.damp(groupRef.current.rotation.z, targetRotZ, 10, delta);
+      groupRef.current.rotation.z = rot;
+      settled = Math.abs(rot - targetRotZ) < 0.02;
     }
     if (waterRef.current) {
-      const target = filled ? 1 : 0.001;
-      const next = THREE.MathUtils.damp(waterRef.current.scale.y, target, 6, delta);
-      waterRef.current.scale.y = next;
-      waterRef.current.visible = next > 0.02;
+      // Only start filling once this pipe has actually finished
+      // rotating into place — otherwise the water starts rushing in
+      // mid-turn, before the connection is real.
+      const target = filled && settled ? 1 : 0.001;
+      // Slow enough to actually read as water crossing the pipe (~0.4s)
+      // rather than an instant pop, now that it's gated to start only
+      // once the rotation has settled.
+      const fillFrac = THREE.MathUtils.damp(waterRef.current.userData.fillFrac ?? 0.001, target, 2.4, delta);
+      waterRef.current.userData.fillFrac = fillFrac;
+      // Local +Y maps to the spring side once rotated open, local -Y to
+      // the pool side — anchor the filled end at +Y and grow the other
+      // edge outward, so it reads as water flowing spring -> pool
+      // rather than materializing from the center.
+      waterRef.current.scale.y = fillFrac;
+      waterRef.current.position.y = (FULL_LEN / 2) * (1 - fillFrac);
+      waterRef.current.visible = fillFrac > 0.02;
     }
   });
 
