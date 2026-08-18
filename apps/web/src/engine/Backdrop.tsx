@@ -73,7 +73,11 @@ export function Backdrop() {
     <>
       {/* @ts-expect-error drei's Sky ref type doesn't expose .material, but it's a real THREE.Mesh */}
       <Sky ref={skyRef} distance={3000} mieCoefficient={0.01} mieDirectionalG={0.9} />
-      <fog attach="fog" args={["#e8a374", 14, 34]} />
+      {/* far distance kept well inside the island mesh's own radius so
+          the terrain's finite edge is fully fogged out before the
+          camera can ever see it, instead of sitting right at the fog
+          boundary as a visible seam */}
+      <fog attach="fog" args={["#e8a374", 12, 26]} />
 
       <hemisphereLight args={["#bfe0ff", "#caa06a", 0.7]} />
       <ambientLight intensity={0.4} color="#ffd9a8" />

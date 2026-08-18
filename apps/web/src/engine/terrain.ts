@@ -27,18 +27,32 @@ function smoothstep(edge0: number, edge1: number, x: number) {
 
 // Returns terrain height at world (x, z). 0 = sea level. Positive =
 // dry land, negative = underwater.
+//
+// Two non-overlapping, C1-continuous zones — both meet at exactly
+// height 0 with zero slope at DUNE_RADIUS, so there's no seam. (An
+// earlier version had a dune "bump" that stayed large all the way out
+// past DEEP_RADIUS while a separate sea-floor slope was already
+// dropping from much closer in — the two competed over a huge
+// overlapping span and produced an ungainly ridge around the island.)
 export function islandHeight(x: number, z: number): number {
   const r = Math.hypot(x, z);
   if (r <= FLAT_RADIUS) return 0;
 
-  const duneFactor = smoothstep(FLAT_RADIUS, DUNE_RADIUS, r) * (1 - smoothstep(DUNE_RADIUS, DEEP_RADIUS, r));
-  const hill = (noise2D(x * 0.09, z * 0.09) * 0.6 + noise2D(x * 0.22, z * 0.22) * 0.3) * 1.4;
-  const dune = hill * duneFactor;
+  if (r <= DUNE_RADIUS) {
+    // dune zone: rises from the flat play area, settles back to
+    // exactly 0 at the shoreline — a smooth bump, not a ramp that
+    // has to be cancelled out by something else further along.
+    const t = smoothstep(FLAT_RADIUS, DUNE_RADIUS, r);
+    const bump = Math.sin(t * Math.PI);
+    const hill = (noise2D(x * 0.09, z * 0.09) * 0.6 + noise2D(x * 0.22, z * 0.22) * 0.3) * 1.2;
+    return hill * bump;
+  }
 
-  const slope = smoothstep(DUNE_RADIUS - 2, DEEP_RADIUS, r);
-  const seaFloor = -4.2 * slope;
-
-  return dune + seaFloor;
+  // beyond the shoreline: a single monotonic descent into the sea
+  // floor, with only gentle texture (no competing bump amplitude).
+  const slopeT = smoothstep(DUNE_RADIUS, DEEP_RADIUS, r);
+  const floorTexture = noise2D(x * 0.06, z * 0.06) * 0.3 * slopeT;
+  return -4.2 * slopeT + floorTexture;
 }
 
 export function terrainZone(height: number): "dry" | "wet" | "shallow" | "deep" {

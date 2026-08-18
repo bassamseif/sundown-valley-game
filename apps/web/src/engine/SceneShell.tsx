@@ -35,7 +35,7 @@ export function SceneShell({
         enablePan={false}
         minDistance={4}
         maxDistance={maxDistance}
-        maxPolarAngle={Math.PI / 2.15}
+        maxPolarAngle={Math.PI / 2.35}
       />
     </Canvas>
   );
