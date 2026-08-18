@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { Ocean } from "./Ocean";
 import { PalmTree } from "./PalmTree";
 import { Island } from "./Island";
+import { Mountains } from "./Mountains";
 import { islandHeight } from "./terrain";
 
 const CYCLE_SECONDS = 50;
@@ -99,6 +100,7 @@ export function Backdrop() {
         <orthographicCamera attach="shadow-camera" args={[-14, 14, 14, -14, 0.5, 60]} />
       </directionalLight>
 
+      <Mountains />
       <Island />
       <Ocean />
 
