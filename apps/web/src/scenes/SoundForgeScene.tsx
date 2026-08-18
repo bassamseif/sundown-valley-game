@@ -15,7 +15,7 @@ import {
   type ForgeState,
 } from "../puzzles/soundForge";
 import { glyphTexture } from "../engine/glyphTexture";
-import { playClip, preloadClips } from "../engine/audio";
+import { playPhoneme, playWordChime, preloadClips } from "../engine/audio";
 import { TapHint } from "../engine/TapHint";
 import { exposeTestHook } from "../engine/testHooks";
 
@@ -174,21 +174,22 @@ export function SoundForgeScene() {
   const prevSolved = useRef(false);
   useEffect(() => {
     if (solved && !prevSolved.current) {
-      const word = pebbles.length ? state.wordId : state.wordId;
-      void playClip(`word_${word}`);
+      void playWordChime(pebbles.map((p) => p.phoneme));
     }
     prevSolved.current = solved;
-  }, [solved, pebbles, state.wordId]);
+  }, [solved, pebbles]);
 
   function handlePebbleTap(pebbleId: string) {
     if (solved) return;
     const slotIndex = state.slots.indexOf(pebbleId);
     if (slotIndex !== -1) {
+      const pebble = pebbles.find((p) => p.id === pebbleId);
+      if (pebble) void playPhoneme(pebble.phoneme);
       setState((s) => tapSlot(s, slotIndex));
       return;
     }
     const pebble = pebbles.find((p) => p.id === pebbleId);
-    if (pebble) void playClip(pebble.phoneme);
+    if (pebble) void playPhoneme(pebble.phoneme);
     setState((s) => tapPebble(s, pebbleId));
   }
 
