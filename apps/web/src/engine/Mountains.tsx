@@ -16,9 +16,14 @@ function mulberry32(seed: number) {
   };
 }
 
-const RING_RADIUS = DEEP_RADIUS + 22;
+// Exponential fog grows with distance squared, so anything much past
+// the fog-tuned edge radius reads as fully fog-colored (flat white/pale
+// in daylight) rather than hazy-but-visible. Keeping the ring close to
+// the island's own edge keeps the peaks inside the part of the fog
+// curve where they still read as colored, not washed out.
+const RING_RADIUS = DEEP_RADIUS + 10;
 const PEAK_COUNT = 14;
-const MOUNTAIN_COLOR = "#8a93b8"; // cool, hazy blue-violet — reads as "far away" against the warm sand/sky
+const MOUNTAIN_COLOR = "#6b74a8"; // cool, saturated blue-violet — needs to survive partial fog and still read as a hue, not just gray
 
 type Cone = { x: number; z: number; y: number; height: number; baseRadius: number; rotation: number };
 

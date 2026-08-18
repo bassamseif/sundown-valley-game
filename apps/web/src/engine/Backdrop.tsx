@@ -1,26 +1,14 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Sky, Sparkles } from "@react-three/drei";
+import { Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import { Ocean } from "./Ocean";
 import { PalmTree } from "./PalmTree";
 import { Island } from "./Island";
 import { Mountains } from "./Mountains";
+import { Skybox } from "./Skybox";
 import { islandHeight } from "./terrain";
-
-const CYCLE_SECONDS = 50;
-const AZIMUTH_DEG = 200; // sun sets out over the ocean, roughly ahead of the camera
-
-function triangleWave(t: number, period: number) {
-  const x = (t % period) / period;
-  return x < 0.5 ? x * 2 : 2 - x * 2;
-}
-
-function sunVector(elevationDeg: number, azimuthDeg: number) {
-  const phi = THREE.MathUtils.degToRad(90 - elevationDeg);
-  const theta = THREE.MathUtils.degToRad(azimuthDeg);
-  return new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
-}
+import { AZIMUTH_DEG, sunState } from "./sunCycle";
 
 // Palms planted around the dune ring so the beach reads as surrounding
 // the puzzle from every orbit angle, each sitting at the terrain's own
@@ -47,15 +35,10 @@ const PALM_PLACEMENTS = [
 // loop instead of only at the 15-minute mark.
 export function Backdrop() {
   const sunLightRef = useRef<THREE.DirectionalLight>(null);
-  const skyRef = useRef<{ material: THREE.ShaderMaterial } | null>(null);
   const fogRef = useRef<THREE.FogExp2>(null);
 
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    const elevation = THREE.MathUtils.lerp(2, 45, triangleWave(t, CYCLE_SECONDS));
-    const dir = sunVector(elevation, AZIMUTH_DEG);
-
-    const setProgress = 1 - THREE.MathUtils.clamp((elevation - 2) / (45 - 2), 0, 1);
+    const { dir, setProgress } = sunState(clock.getElapsedTime());
 
     if (sunLightRef.current) {
       sunLightRef.current.position.copy(dir).multiplyScalar(30);
@@ -63,36 +46,27 @@ export function Backdrop() {
       sunLightRef.current.color.setHSL(THREE.MathUtils.lerp(0.14, 0.03, setProgress), 0.85, 0.62);
     }
 
-    const sky = skyRef.current;
-    if (sky?.material?.uniforms) {
-      sky.material.uniforms.sunPosition.value.copy(dir);
-      sky.material.uniforms.turbidity.value = THREE.MathUtils.lerp(3, 8, setProgress);
-      sky.material.uniforms.rayleigh.value = THREE.MathUtils.lerp(1.2, 3.2, setProgress);
-    }
-
-    // Fog color tracks the same setProgress driving the sun/sky so it
-    // never mismatches the sky's actual rendered horizon hue — a fixed
-    // fog color was the real cause of the visible seam at the terrain's
-    // silhouette edge (fog density hides geometry, but only a color
-    // *match* hides the edge itself).
+    // Fog color uses the exact same HSL formula as the skybox's horizon
+    // band (see Skybox.tsx's uHorizon) so it never mismatches the sky
+    // pixel next to it at the terrain's silhouette edge — fog density
+    // hides geometry, but only a color *match* hides the edge itself.
     if (fogRef.current) {
       fogRef.current.color.setHSL(
-        THREE.MathUtils.lerp(0.09, 0.05, setProgress),
-        0.55,
-        THREE.MathUtils.lerp(0.72, 0.58, setProgress)
+        THREE.MathUtils.lerp(0.13, 0.05, setProgress),
+        THREE.MathUtils.lerp(0.55, 0.85, setProgress),
+        THREE.MathUtils.lerp(0.9, 0.62, setProgress)
       );
     }
   });
 
   return (
     <>
-      {/* @ts-expect-error drei's Sky ref type doesn't expose .material, but it's a real THREE.Mesh */}
-      <Sky ref={skyRef} distance={3000} mieCoefficient={0.01} mieDirectionalG={0.9} />
+      <Skybox />
       {/* Exponential-squared fog: no hard "far" cutoff radius (unlike
           linear fog), so density ramps smoothly and is already
           near-opaque well inside the island mesh's own edge
           (DEEP_RADIUS = 26) — no fixed boundary for a seam to sit at. */}
-      <fogExp2 ref={fogRef} attach="fog" args={["#e8a374", 0.045]} />
+      <fogExp2 ref={fogRef} attach="fog" args={["#e8a374", 0.035]} />
 
       <hemisphereLight args={["#bfe0ff", "#caa06a", 0.7]} />
       <ambientLight intensity={0.4} color="#ffd9a8" />
