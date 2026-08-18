@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { RoundedBox, Sphere } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import {
   SEGMENT_COUNT,
@@ -16,6 +16,7 @@ import { useEffect } from "react";
 
 const PIPE_LENGTH = 1.1;
 const PIPE_RADIUS = 0.16;
+const WATER_FULL_LEN = PIPE_LENGTH * 0.96;
 
 function Pool({ solved }: { solved: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
@@ -41,19 +42,25 @@ function Pool({ solved }: { solved: boolean }) {
 // that physically swings between "aligned with the pipeline" (open)
 // and "turned crossways" (closed) — a rotation you can watch happen.
 // The tube itself is translucent so an inner "water" core is visible
-// growing to fill it (rather than a separate effect floating above the
-// pipe) whenever this segment is actually open AND connected back to
-// the spring — water visibly rushing in the moment you rotate it right.
+// growing to fill it, rather than a separate effect floating above the
+// pipe. This component only reports its own rotation-settled state and
+// renders whatever fill fraction the scene's cascade controller has
+// computed for it — it doesn't decide its own fill target, since that
+// has to account for every upstream segment (see PipeAlignScene).
 function PipeSegment({
   x,
   open,
-  filled,
+  index,
+  settledRef,
+  fillFracRef,
   onTap,
   showHint,
 }: {
   x: number;
   open: boolean;
-  filled: boolean;
+  index: number;
+  settledRef: MutableRefObject<boolean[]>;
+  fillFracRef: MutableRefObject<number[]>;
   onTap: () => void;
   showHint: boolean;
 }) {
@@ -66,31 +73,21 @@ function PipeSegment({
   // flat along the pipeline, closed stands straight up, both clearly
   // legible silhouettes.
   const targetRotZ = open ? Math.PI / 2 : 0;
-  const FULL_LEN = PIPE_LENGTH * 0.96;
 
   useFrame((_, delta) => {
-    let settled = false;
     if (groupRef.current) {
       const rot = THREE.MathUtils.damp(groupRef.current.rotation.z, targetRotZ, 10, delta);
       groupRef.current.rotation.z = rot;
-      settled = Math.abs(rot - targetRotZ) < 0.02;
+      settledRef.current[index] = Math.abs(rot - targetRotZ) < 0.02;
     }
     if (waterRef.current) {
-      // Only start filling once this pipe has actually finished
-      // rotating into place — otherwise the water starts rushing in
-      // mid-turn, before the connection is real.
-      const target = filled && settled ? 1 : 0.001;
-      // Slow enough to actually read as water crossing the pipe (~0.4s)
-      // rather than an instant pop, now that it's gated to start only
-      // once the rotation has settled.
-      const fillFrac = THREE.MathUtils.damp(waterRef.current.userData.fillFrac ?? 0.001, target, 2.4, delta);
-      waterRef.current.userData.fillFrac = fillFrac;
+      const fillFrac = fillFracRef.current[index] ?? 0.001;
       // Local +Y maps to the spring side once rotated open, local -Y to
       // the pool side — anchor the filled end at +Y and grow the other
       // edge outward, so it reads as water flowing spring -> pool
       // rather than materializing from the center.
       waterRef.current.scale.y = fillFrac;
-      waterRef.current.position.y = (FULL_LEN / 2) * (1 - fillFrac);
+      waterRef.current.position.y = (WATER_FULL_LEN / 2) * (1 - fillFrac);
       waterRef.current.visible = fillFrac > 0.02;
     }
   });
@@ -113,7 +110,7 @@ function PipeSegment({
           />
         </mesh>
         <mesh ref={waterRef} scale={[1, 0.001, 1]}>
-          <cylinderGeometry args={[PIPE_RADIUS * 0.72, PIPE_RADIUS * 0.72, PIPE_LENGTH * 0.96, 16]} />
+          <cylinderGeometry args={[PIPE_RADIUS * 0.72, PIPE_RADIUS * 0.72, WATER_FULL_LEN, 16]} />
           <meshStandardMaterial color="#5fd8e8" emissive="#0f5b66" emissiveIntensity={0.7} roughness={0.25} />
         </mesh>
         {[-1, 1].map((side) => (
@@ -131,7 +128,28 @@ export function PipeAlignScene() {
   const [orientations, setOrientations] = useState<number[]>(() => initialOrientations());
   const solved = useMemo(() => isSolved(orientations), [orientations]);
   const firstClosed = orientations.findIndex((o) => !isOpen(o));
-  const flowCount = firstClosed === -1 ? SEGMENT_COUNT : firstClosed;
+
+  // Per-segment rotation-settled flags and fill fractions live outside
+  // React state (plain refs, mutated every frame) — a single cascade
+  // pass below is the only thing allowed to set a segment's fill
+  // target, walking spring -> pool in order and only letting a segment
+  // start filling once the one before it is substantially full. That's
+  // what makes newly-reconnected pipes fill one at a time instead of
+  // every downstream segment popping full in parallel the instant a
+  // gap closes.
+  const settledRef = useRef<boolean[]>(Array(SEGMENT_COUNT).fill(false));
+  const fillFracRef = useRef<number[]>(Array(SEGMENT_COUNT).fill(0.001));
+
+  useFrame((_, delta) => {
+    let upstreamReady = true; // the spring is always a ready source
+    for (let i = 0; i < SEGMENT_COUNT; i++) {
+      const eligible: boolean = isOpen(orientations[i]) && settledRef.current[i] && upstreamReady;
+      const target = eligible ? 1 : 0.001;
+      const next = THREE.MathUtils.damp(fillFracRef.current[i], target, 2.4, delta);
+      fillFracRef.current[i] = next;
+      upstreamReady = eligible && next > 0.85;
+    }
+  });
 
   function tapSegment(i: number) {
     if (solved) return;
@@ -171,7 +189,9 @@ export function PipeAlignScene() {
           key={i}
           x={startX + i * spacing}
           open={isOpen(o)}
-          filled={i < flowCount}
+          index={i}
+          settledRef={settledRef}
+          fillFracRef={fillFracRef}
           onTap={() => tapSegment(i)}
           showHint={i === firstClosed && !solved}
         />
