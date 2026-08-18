@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Float, Icosahedron, RoundedBox, Sparkles } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import { Physics, RigidBody } from "@react-three/rapier";
+import * as THREE from "three";
 import { CRYSTALS, TARGET_UNITS, isCorrectPair } from "../puzzles/geometryCombine";
 import { TapHint } from "../engine/TapHint";
 import { exposeTestHook } from "../engine/testHooks";
@@ -12,8 +14,83 @@ const COLORS: Record<string, string> = {
   c4: "#ff8fb3",
 };
 
+const COMBINE_ANIM_MS = 320;
+
 function scaleFor(units: number) {
   return 0.32 + units * 0.15;
+}
+
+// A single crystal that smoothly lifts when selected, wiggles when a
+// wrong pair is tried, and shrinks away (rather than instantly
+// vanishing) once it's been used in a correct combine.
+function Crystal({
+  id,
+  x,
+  s,
+  isSelected,
+  isWrong,
+  isCombining,
+  showHint,
+  onTap,
+}: {
+  id: string;
+  x: number;
+  s: number;
+  isSelected: boolean;
+  isWrong: boolean;
+  isCombining: boolean;
+  showHint: boolean;
+  onTap: () => void;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  const wiggleT = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!groupRef.current || !meshRef.current) return;
+
+    const targetY = isSelected ? s + 0.3 : s;
+    meshRef.current.position.y = THREE.MathUtils.damp(meshRef.current.position.y, targetY, 10, delta);
+
+    if (isWrong) {
+      wiggleT.current += delta * 24;
+      meshRef.current.rotation.z = Math.sin(wiggleT.current) * 0.18;
+    } else {
+      wiggleT.current = 0;
+      meshRef.current.rotation.z = THREE.MathUtils.damp(meshRef.current.rotation.z, 0, 12, delta);
+    }
+
+    const targetScale = isCombining ? 0 : 1;
+    const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScale, 14, delta);
+    groupRef.current.scale.setScalar(nextScale);
+  });
+
+  return (
+    <group ref={groupRef} position={[x, 0, 1.6]}>
+      {showHint && <TapHint position={[0, s, 0]} />}
+      <Float speed={2} rotationIntensity={0.4} floatIntensity={isSelected ? 0 : 0.6}>
+        <Icosahedron
+          ref={meshRef}
+          args={[s, 0]}
+          position={[0, s, 0]}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTap();
+          }}
+          castShadow
+        >
+          <meshPhysicalMaterial
+            color={isWrong ? "#ff6b6b" : COLORS[id]}
+            emissive={isSelected ? "#ffffff" : "#000000"}
+            emissiveIntensity={isSelected ? 0.35 : 0}
+            roughness={0.2}
+            clearcoat={0.6}
+            clearcoatRoughness={0.2}
+          />
+        </Icosahedron>
+      </Float>
+    </group>
+  );
 }
 
 export function GeometryCombineScene() {
@@ -21,9 +98,10 @@ export function GeometryCombineScene() {
   const [wrong, setWrong] = useState<string | null>(null);
   const [solved, setSolved] = useState(false);
   const [usedIds, setUsedIds] = useState<string[]>([]);
+  const [combiningIds, setCombiningIds] = useState<string[]>([]);
 
   function tapCrystal(id: string, units: number) {
-    if (solved || usedIds.includes(id)) return;
+    if (solved || usedIds.includes(id) || combiningIds.includes(id)) return;
 
     if (!selected) {
       setSelected(id);
@@ -36,9 +114,14 @@ export function GeometryCombineScene() {
 
     const other = CRYSTALS.find((c) => c.id === selected)!;
     if (isCorrectPair(other.units, units)) {
-      setUsedIds([selected, id]);
+      const pair = [selected, id];
       setSelected(null);
-      setSolved(true);
+      setCombiningIds(pair);
+      setTimeout(() => {
+        setUsedIds(pair);
+        setCombiningIds([]);
+        setSolved(true);
+      }, COMBINE_ANIM_MS);
     } else {
       setWrong(id);
       setTimeout(() => setWrong(null), 350);
@@ -49,6 +132,7 @@ export function GeometryCombineScene() {
   function reset() {
     setSelected(null);
     setUsedIds([]);
+    setCombiningIds([]);
     setSolved(false);
   }
 
@@ -95,33 +179,18 @@ export function GeometryCombineScene() {
       {CRYSTALS.map((c, i) => {
         if (usedIds.includes(c.id)) return null;
         const x = (i - 1.5) * 1.5;
-        const isSelected = selected === c.id;
-        const isWrong = wrong === c.id;
-        const s = scaleFor(c.units);
         return (
-          <group key={c.id} position={[x, 0, 1.6]}>
-            {!selected && i === 0 && <TapHint position={[0, s, 0]} />}
-            <Float speed={2} rotationIntensity={0.4} floatIntensity={isSelected ? 0 : 0.6}>
-              <Icosahedron
-                args={[s, 0]}
-                position={[0, s + (isSelected ? 0.3 : 0), 0]}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  tapCrystal(c.id, c.units);
-                }}
-                castShadow
-              >
-                <meshPhysicalMaterial
-                  color={isWrong ? "#ff6b6b" : COLORS[c.id]}
-                  emissive={isSelected ? "#ffffff" : "#000000"}
-                  emissiveIntensity={isSelected ? 0.35 : 0}
-                  roughness={0.2}
-                  clearcoat={0.6}
-                  clearcoatRoughness={0.2}
-                />
-              </Icosahedron>
-            </Float>
-          </group>
+          <Crystal
+            key={c.id}
+            id={c.id}
+            x={x}
+            s={scaleFor(c.units)}
+            isSelected={selected === c.id}
+            isWrong={wrong === c.id}
+            isCombining={combiningIds.includes(c.id)}
+            showHint={!selected && i === 0}
+            onTap={() => tapCrystal(c.id, c.units)}
+          />
         );
       })}
 

@@ -33,7 +33,7 @@ test("geometry combining: solving a correct pair reaches solved state", async ({
   // wait for the scene to mount its test hook
   await page.waitForFunction(() => (window as any).__sv?.geometry !== undefined);
 
-  // c2 (2 units) + c3 (3 units) = target of 5 units, per src/puzzles/geometryCombine.ts
+  // c2 and c3 are both size 2 (a congruent match), per src/puzzles/geometryCombine.ts
   await page.evaluate(() => (window as any).__sv.geometry.tap("c2"));
   await page.evaluate(() => (window as any).__sv.geometry.tap("c3"));
 
@@ -47,7 +47,7 @@ test("geometry combining: an incorrect pair does not solve and stays retryable",
   await page.getByRole("button", { name: "Geometry Combining" }).click();
   await page.waitForFunction(() => (window as any).__sv?.geometry !== undefined);
 
-  // c1 (1) + c2 (2) = 3, not the target of 5
+  // c1 (size 1) and c2 (size 2) don't match
   await page.evaluate(() => (window as any).__sv.geometry.tap("c1"));
   await page.evaluate(() => (window as any).__sv.geometry.tap("c2"));
 

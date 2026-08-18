@@ -13,7 +13,7 @@ const LOOPS: { id: Loop; label: string; icon: string; gradient: string; instruct
     label: "Geometry Combining",
     icon: "◆",
     gradient: "linear-gradient(135deg, #c6a6ff, #7fe3c9)",
-    instruction: "Tap two crystals that add up to the glowing outline, then tap the second one to combine them.",
+    instruction: "Tap two crystals that are the same size as the glowing outline, then tap the second one to combine them.",
   },
   {
     id: "pipes",

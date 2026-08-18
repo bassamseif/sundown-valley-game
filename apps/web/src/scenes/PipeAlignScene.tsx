@@ -14,6 +14,9 @@ import { TapHint } from "../engine/TapHint";
 import { exposeTestHook } from "../engine/testHooks";
 import { useEffect } from "react";
 
+const PIPE_LENGTH = 1.1;
+const PIPE_RADIUS = 0.16;
+
 function Pool({ solved }: { solved: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
@@ -31,6 +34,53 @@ function Pool({ solved }: { solved: boolean }) {
         clearcoat={0.8}
       />
     </Sphere>
+  );
+}
+
+// A real pipe: a hollow cylinder (you can see through the open ends,
+// like an actual tube) with a ring flange at each end, that physically
+// swings between "aligned with the pipeline" (open, water can pass)
+// and "turned crossways" (closed, blocking it) — a rotation you can
+// watch happen, not a shape that instantly swaps.
+function PipeSegment({
+  x,
+  open,
+  onTap,
+  showHint,
+}: {
+  x: number;
+  open: boolean;
+  onTap: () => void;
+  showHint: boolean;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const targetRotY = open ? 0 : Math.PI / 2;
+
+  useFrame((_, delta) => {
+    if (!groupRef.current) return;
+    groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, targetRotY, 10, delta);
+  });
+
+  const color = open ? "#7fe3c9" : "#8291c4";
+  const emissive = open ? "#1c5c3f" : "#000000";
+  const emissiveIntensity = open ? 0.4 : 0;
+
+  return (
+    <group position={[x, 0, 0]}>
+      {showHint && <TapHint position={[0, 0.14, 0]} />}
+      <group ref={groupRef} onClick={(e) => { e.stopPropagation(); onTap(); }}>
+        <mesh rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
+          <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, PIPE_LENGTH, 20, 1, true]} />
+          <meshPhysicalMaterial color={color} emissive={emissive} emissiveIntensity={emissiveIntensity} roughness={0.25} clearcoat={0.5} side={THREE.DoubleSide} />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={side} position={[(side * PIPE_LENGTH) / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+            <torusGeometry args={[PIPE_RADIUS, 0.045, 10, 24]} />
+            <meshStandardMaterial color="#5c6690" roughness={0.4} metalness={0.3} />
+          </mesh>
+        ))}
+      </group>
+    </group>
   );
 }
 
@@ -68,33 +118,15 @@ export function PipeAlignScene() {
         <Pool solved={solved} />
       </group>
 
-      {orientations.map((o, i) => {
-        const open = isOpen(o);
-        const x = startX + i * spacing;
-        return (
-          <group key={i} position={[x, 0, 0]}>
-            {i === firstClosed && !solved && <TapHint position={[0, 0.14, 0]} />}
-            <RoundedBox
-              args={open ? [1.1, 0.3, 0.3] : [0.3, 0.3, 1.1]}
-              radius={0.09}
-              onClick={(e) => {
-                e.stopPropagation();
-                tapSegment(i);
-              }}
-              castShadow
-              receiveShadow
-            >
-              <meshPhysicalMaterial
-                color={open ? "#7fe3c9" : "#8291c4"}
-                emissive={open ? "#1c5c3f" : "#000000"}
-                emissiveIntensity={open ? 0.4 : 0}
-                roughness={0.25}
-                clearcoat={0.5}
-              />
-            </RoundedBox>
-          </group>
-        );
-      })}
+      {orientations.map((o, i) => (
+        <PipeSegment
+          key={i}
+          x={startX + i * spacing}
+          open={isOpen(o)}
+          onTap={() => tapSegment(i)}
+          showHint={i === firstClosed && !solved}
+        />
+      ))}
 
       {solved && (
         <RoundedBox
