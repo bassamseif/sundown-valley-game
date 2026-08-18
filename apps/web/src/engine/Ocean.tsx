@@ -68,16 +68,24 @@ export function Ocean() {
           }`
         )
         .replace(
-          // traveling glint sparkles, added as emissive so they read
-          // clearly regardless of light direction — the visible
-          // "liveliness" cue on top of the subtler lighting ripple
+          // A thresholded pattern (smoothstep cutting a sine field)
+          // reads as discrete blobs/spots at most viewing distances —
+          // tried it, looked like a leopard print. Dropped the
+          // threshold entirely: this is a continuous, low-amplitude
+          // brightness wash — three overlapping sine fields at
+          // different scales/directions, summed and normalized to
+          // 0..1, no hard edge anywhere. Reads as gentle dappled
+          // shimmer instead of spots, and still visibly animates.
           "#include <emissivemap_fragment>",
           `#include <emissivemap_fragment>
           {
-            float glintA = sin(vWorldPos.x * 2.4 + uTime * 1.7) * sin(vWorldPos.z * 2.1 - uTime * 1.3);
-            float glintB = sin(vWorldPos.x * 1.3 - uTime * 0.9 + vWorldPos.z * 0.6) * sin(vWorldPos.z * 1.7 + uTime * 1.1);
-            float glint = pow(max(glintA, 0.0), 8.0) + pow(max(glintB, 0.0), 8.0) * 0.6;
-            totalEmissiveRadiance += vec3(1.0, 0.98, 0.85) * glint * 0.6;
+            vec2 p = vWorldPos.xz;
+            float s1 = sin(p.x * 0.9 + p.y * 0.3 + uTime * 0.8);
+            float s2 = sin(p.x * 0.35 - p.y * 1.1 - uTime * 0.55);
+            float s3 = sin(p.x * 1.6 + p.y * 1.4 + uTime * 1.1) * 0.5;
+            float shimmer = (s1 + s2 + s3) / 2.5 * 0.5 + 0.5;
+
+            totalEmissiveRadiance += vec3(1.0, 0.98, 0.88) * shimmer * 0.1;
           }`
         );
     },
