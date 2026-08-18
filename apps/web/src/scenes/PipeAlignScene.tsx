@@ -54,11 +54,17 @@ function PipeSegment({
   showHint: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
-  const targetRotY = open ? 0 : Math.PI / 2;
+  // Rotating around Y would swing the pipe into/out of the screen —
+  // from this camera angle a "closed" pipe would foreshorten almost
+  // end-on into a thin sliver, unreadable. Rotating around Z instead
+  // keeps the whole swing inside the camera's view plane: open lies
+  // flat along the pipeline, closed stands straight up, both clearly
+  // legible silhouettes.
+  const targetRotZ = open ? Math.PI / 2 : 0;
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-    groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, targetRotY, 10, delta);
+    groupRef.current.rotation.z = THREE.MathUtils.damp(groupRef.current.rotation.z, targetRotZ, 10, delta);
   });
 
   const color = open ? "#7fe3c9" : "#8291c4";
@@ -69,12 +75,12 @@ function PipeSegment({
     <group position={[x, 0, 0]}>
       {showHint && <TapHint position={[0, 0.14, 0]} />}
       <group ref={groupRef} onClick={(e) => { e.stopPropagation(); onTap(); }}>
-        <mesh rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
+        <mesh castShadow receiveShadow>
           <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, PIPE_LENGTH, 20, 1, true]} />
           <meshPhysicalMaterial color={color} emissive={emissive} emissiveIntensity={emissiveIntensity} roughness={0.25} clearcoat={0.5} side={THREE.DoubleSide} />
         </mesh>
         {[-1, 1].map((side) => (
-          <mesh key={side} position={[(side * PIPE_LENGTH) / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <mesh key={side} position={[0, (side * PIPE_LENGTH) / 2, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
             <torusGeometry args={[PIPE_RADIUS, 0.045, 10, 24]} />
             <meshStandardMaterial color="#5c6690" roughness={0.4} metalness={0.3} />
           </mesh>
