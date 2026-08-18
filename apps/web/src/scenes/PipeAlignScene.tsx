@@ -3,7 +3,6 @@ import { RoundedBox, Sphere } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import * as THREE from "three";
-import { WaterFlow } from "../engine/WaterFlow";
 import {
   SEGMENT_COUNT,
   initialOrientations,
@@ -38,23 +37,28 @@ function Pool({ solved }: { solved: boolean }) {
   );
 }
 
-// A real pipe: a hollow cylinder (you can see through the open ends,
-// like an actual tube) with a ring flange at each end, that physically
-// swings between "aligned with the pipeline" (open, water can pass)
-// and "turned crossways" (closed, blocking it) — a rotation you can
-// watch happen, not a shape that instantly swaps.
+// A real pipe: a glassy hollow cylinder with a ring flange at each end,
+// that physically swings between "aligned with the pipeline" (open)
+// and "turned crossways" (closed) — a rotation you can watch happen.
+// The tube itself is translucent so an inner "water" core is visible
+// growing to fill it (rather than a separate effect floating above the
+// pipe) whenever this segment is actually open AND connected back to
+// the spring — water visibly rushing in the moment you rotate it right.
 function PipeSegment({
   x,
   open,
+  filled,
   onTap,
   showHint,
 }: {
   x: number;
   open: boolean;
+  filled: boolean;
   onTap: () => void;
   showHint: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const waterRef = useRef<THREE.Mesh>(null);
   // Rotating around Y would swing the pipe into/out of the screen —
   // from this camera angle a "closed" pipe would foreshorten almost
   // end-on into a thin sliver, unreadable. Rotating around Z instead
@@ -64,13 +68,16 @@ function PipeSegment({
   const targetRotZ = open ? Math.PI / 2 : 0;
 
   useFrame((_, delta) => {
-    if (!groupRef.current) return;
-    groupRef.current.rotation.z = THREE.MathUtils.damp(groupRef.current.rotation.z, targetRotZ, 10, delta);
+    if (groupRef.current) {
+      groupRef.current.rotation.z = THREE.MathUtils.damp(groupRef.current.rotation.z, targetRotZ, 10, delta);
+    }
+    if (waterRef.current) {
+      const target = filled ? 1 : 0.001;
+      const next = THREE.MathUtils.damp(waterRef.current.scale.y, target, 6, delta);
+      waterRef.current.scale.y = next;
+      waterRef.current.visible = next > 0.02;
+    }
   });
-
-  const color = open ? "#7fe3c9" : "#8291c4";
-  const emissive = open ? "#1c5c3f" : "#000000";
-  const emissiveIntensity = open ? 0.4 : 0;
 
   return (
     <group position={[x, 0, 0]}>
@@ -78,7 +85,20 @@ function PipeSegment({
       <group ref={groupRef} onClick={(e) => { e.stopPropagation(); onTap(); }}>
         <mesh castShadow receiveShadow>
           <cylinderGeometry args={[PIPE_RADIUS, PIPE_RADIUS, PIPE_LENGTH, 20, 1, true]} />
-          <meshPhysicalMaterial color={color} emissive={emissive} emissiveIntensity={emissiveIntensity} roughness={0.25} clearcoat={0.5} side={THREE.DoubleSide} />
+          <meshPhysicalMaterial
+            color="#dce8f5"
+            transparent
+            opacity={0.35}
+            roughness={0.08}
+            clearcoat={1}
+            clearcoatRoughness={0.08}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh ref={waterRef} scale={[1, 0.001, 1]}>
+          <cylinderGeometry args={[PIPE_RADIUS * 0.72, PIPE_RADIUS * 0.72, PIPE_LENGTH * 0.96, 16]} />
+          <meshStandardMaterial color="#5fd8e8" emissive="#0f5b66" emissiveIntensity={0.7} roughness={0.25} />
         </mesh>
         {[-1, 1].map((side) => (
           <mesh key={side} position={[0, (side * PIPE_LENGTH) / 2, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
@@ -95,6 +115,7 @@ export function PipeAlignScene() {
   const [orientations, setOrientations] = useState<number[]>(() => initialOrientations());
   const solved = useMemo(() => isSolved(orientations), [orientations]);
   const firstClosed = orientations.findIndex((o) => !isOpen(o));
+  const flowCount = firstClosed === -1 ? SEGMENT_COUNT : firstClosed;
 
   function tapSegment(i: number) {
     if (solved) return;
@@ -116,12 +137,6 @@ export function PipeAlignScene() {
   const startX = -((SEGMENT_COUNT - 1) * spacing) / 2;
   const endOffset = PIPE_LENGTH / 2 + 0.32; // spring/pool spheres sit just past the last flange, no gap
 
-  const flowCount = firstClosed === -1 ? SEGMENT_COUNT : firstClosed;
-  const springEdgeX = startX - endOffset + 0.38;
-  const flowEndX = flowCount === 0 ? springEdgeX : startX + (flowCount - 1) * spacing + PIPE_LENGTH / 2;
-  const poolEdgeX = startX + (SEGMENT_COUNT - 1) * spacing + endOffset - 0.38;
-  const flowLength = Math.max(0, (solved ? poolEdgeX : flowEndX) - springEdgeX);
-
   return (
     <group position={[0, 0.4, 0]}>
       {/* spring */}
@@ -135,16 +150,12 @@ export function PipeAlignScene() {
         <Pool solved={solved} />
       </group>
 
-      {/* riding just above the pipe's outer surface, not on its
-          centerline — droplets on the centerline are hidden behind the
-          opaque pipe wall for most of the run */}
-      <WaterFlow startX={springEdgeX} length={flowLength} y={PIPE_RADIUS + 0.07} />
-
       {orientations.map((o, i) => (
         <PipeSegment
           key={i}
           x={startX + i * spacing}
           open={isOpen(o)}
+          filled={i < flowCount}
           onTap={() => tapSegment(i)}
           showHint={i === firstClosed && !solved}
         />
