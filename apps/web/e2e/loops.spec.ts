@@ -60,31 +60,20 @@ test("geometry combining: an incorrect pair does not solve and stays retryable",
   await page.waitForFunction(() => (window as any).__sv.geometry.solved === true);
 });
 
-test("pipe alignment: rotating every cell to its required orientation solves it", async ({ page }) => {
+test("pipe alignment: opening every segment reaches solved state", async ({ page }) => {
   const errors = trackErrors(page);
   await page.getByRole("button", { name: "Water Pipe Alignment" }).click();
   await expect(page.locator("canvas")).toBeVisible();
   await page.waitForFunction(() => (window as any).__sv?.pipes !== undefined);
 
-  // Straight cells cycle through 2 rotations, elbows through 4 — the
-  // hook exposes each cell's required rotation (single source of truth
-  // in src/puzzles/pipeAlign.ts) so this test doesn't hardcode the grid
-  // layout itself. Each tap is its own page.evaluate + Playwright-level
-  // wait (not an in-page setTimeout loop) — Chromium throttles timers
-  // inside a single long-running evaluate() call, which made an
-  // in-page async tap loop miss React's state flush intermittently.
-  const cellCount = await page.evaluate(() => (window as any).__sv.pipes.required.length);
-  for (let i = 0; i < cellCount; i++) {
-    for (let guard = 0; guard < 4; guard++) {
-      const [cur, req] = await page.evaluate(
-        (idx) => [(window as any).__sv.pipes.orientations[idx], (window as any).__sv.pipes.required[idx]],
-        i
-      );
-      if (cur === req) break;
-      await page.evaluate((idx) => (window as any).__sv.pipes.tap(idx), i);
-      await page.waitForTimeout(50);
-    }
-  }
+  // orientation is binary (0 closed / 1 open) — tapping a closed segment
+  // always opens it in a single tap regardless of its random start state.
+  await page.evaluate(() => {
+    const api = (window as any).__sv.pipes;
+    api.orientations.forEach((o: number, i: number) => {
+      if (o !== 1) api.tap(i);
+    });
+  });
 
   await page.waitForFunction(() => (window as any).__sv.pipes.solved === true);
   const solved = await page.evaluate(() => (window as any).__sv.pipes.solved);
