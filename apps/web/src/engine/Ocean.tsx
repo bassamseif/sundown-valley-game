@@ -40,7 +40,28 @@ export function Ocean() {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           "#include <common>",
-          "#include <common>\nuniform float uTime;\nuniform vec3 uDeepColor;\nvarying vec3 vWorldPos;"
+          `#include <common>
+          uniform float uTime;
+          uniform vec3 uDeepColor;
+          varying vec3 vWorldPos;
+          float gFoamMask = 0.0;
+
+          float hash21(vec2 p) {
+            p = fract(p * vec2(123.34, 456.21));
+            p += dot(p, p + 45.32);
+            return fract(p.x * p.y);
+          }
+
+          float valueNoise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            float a = hash21(i);
+            float b = hash21(i + vec2(1.0, 0.0));
+            float c = hash21(i + vec2(0.0, 1.0));
+            float d = hash21(i + vec2(1.0, 1.0));
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+          }`
         )
         .replace(
           // color_fragment (which sets diffuseColor) runs BEFORE
@@ -65,6 +86,36 @@ export function Ocean() {
             float shallowAlpha = 0.32;
             float deepAlpha = 0.88;
             diffuseColor.a = mix(mix(shallowAlpha, deepAlpha, depthT), 1.0, fresnel * 0.6);
+
+            // Toon-water-style foam: a crisp, organically-scalloped band
+            // where the water meets the shore, instead of a smooth alpha
+            // gradient — the "hard edge that hugs the geometry it
+            // touches" look from ToonWaterShader-style techniques, done
+            // here with an analytic shoreline radius rather than a full
+            // scene-depth prepass, since the only thing our water ever
+            // meets is this one shoreline.
+            vec2 p = vWorldPos.xz;
+            float angle = atan(p.y, p.x);
+            vec2 edgeCoord = vec2(cos(angle), sin(angle)) * 3.2 + uTime * 0.035;
+            float edgeNoise = (valueNoise(edgeCoord) - 0.5) * 2.6;
+            float shoreR = ${DUNE_RADIUS.toFixed(1)} + edgeNoise;
+            float lap = sin(uTime * 1.4 + edgeNoise * 4.0) * 0.3;
+            float band = (dist - shoreR) - lap;
+
+            float bandWidth = 1.5;
+            float t = band / bandWidth;
+            float aa = 0.08;
+            float foamBand = smoothstep(-aa, aa, t) * (1.0 - smoothstep(1.0 - aa, 1.0 + aa, t));
+
+            float speckleField = valueNoise(p * 1.6 + uTime * 0.08);
+            float speckleMask = step(0.78, speckleField);
+            float speckleFade = smoothstep(bandWidth + 2.6, bandWidth * 0.3, band);
+            speckleMask *= speckleFade * step(-0.2, band);
+
+            float foamMask = clamp(foamBand + speckleMask * 0.7, 0.0, 1.0);
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 1.0, 0.98), foamMask);
+            diffuseColor.a = mix(diffuseColor.a, 1.0, foamMask);
+            gFoamMask = foamMask;
           }`
         )
         .replace(
@@ -86,6 +137,7 @@ export function Ocean() {
             float shimmer = (s1 + s2 + s3) / 2.5 * 0.5 + 0.5;
 
             totalEmissiveRadiance += vec3(1.0, 0.98, 0.88) * shimmer * 0.1;
+            totalEmissiveRadiance += vec3(1.0, 1.0, 0.95) * gFoamMask * 0.5;
           }`
         );
     },
