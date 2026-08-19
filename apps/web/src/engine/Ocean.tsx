@@ -3,161 +3,247 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { DEEP_RADIUS, DUNE_RADIUS } from "./terrain";
 
-export const OCEAN_COLOR = "#2fb6c4";
-const OCEAN_DEEP_COLOR = "#0d5866";
+export const OCEAN_COLOR = "#2f8fe6";
+const OCEAN_DEEP_COLOR = "#0a3d73";
 export const OCEAN_Y = -0.08; // just below the island's flat sea-level baseline, no z-fighting
 
-// The sea surface itself never moves — flat, static, 2x2-vertex plane
-// (no CPU per-vertex animation, no per-frame computeVertexNormals).
-// Everything that reads as "real water" happens per-pixel in the
-// fragment shader, all cheap:
-//  - a rippled lighting normal from two animated sine waves, so
-//    sunlight glints shift across the surface without moving geometry
-//  - radial depth: color and opacity shift from a light, mostly
-//    transparent shallow tint near the island (so the sand underneath
-//    shows through) to a darker, more opaque deep-water color further
-//    out — the actual depth cue that was missing
-//  - a view-angle fresnel term so the water looks more reflective at
-//    grazing angles and more transparent looking straight down, like
-//    real water rather than a flat tinted pane
+// Cel-shaded / toon water, adapted from cortiz2894/stylized-components'
+// WaterFloor: Voronoi F1 − SmoothF1 gives a "cell edge" field that's ~0 at
+// cell centers and rises toward cell boundaries; thresholding that hard
+// (not smooth) is what gives the flat, cartoon "cracked glass" look real
+// toon water shaders have, instead of the smooth painterly ripple our
+// previous sine-wave version had. Ripple-ring uniforms are kept (so this
+// stays close to the source shader) but never driven — there's no click
+// interaction in this game to spawn them, so uRippleCount stays 0 and
+// that whole loop is a no-op.
+const VERT = /* glsl */ `
+  varying vec2 vWorldPos;
+  void main() {
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vWorldPos = worldPos.xz;
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  }
+`;
+
+const FRAG = /* glsl */ `
+  uniform float uTime;
+  uniform float uScale;
+  uniform float uSmoothness;
+  uniform float uEdgeThreshold;
+  uniform float uEdgeSoftness;
+  uniform float uFlowX;
+  uniform float uFlowZ;
+  uniform float uCellSpeed;
+  uniform float uNoiseScale;
+  uniform float uNoiseFlowSpeed;
+  uniform float uDistortAmount;
+  uniform vec3  uDeepColor;
+  uniform vec3  uMidColor;
+  uniform float uMidPos;
+  uniform vec3  uHighlight;
+  uniform float uOpacity;
+  uniform float uDeepOpacity;
+  uniform float uFadeDistance;
+  uniform float uFadeStrength;
+  uniform vec2  uCamXZ;
+
+  uniform vec2  uRippleCenters[8];
+  uniform float uRippleTimes[8];
+  uniform int   uRippleCount;
+  uniform float uRippleSpeed;
+  uniform float uRippleWidth;
+  uniform float uRippleStrength;
+  uniform float uRippleDecay;
+  uniform int   uRippleRings;
+  uniform float uRippleSpacing;
+
+  // radial depth cue this scene wants that the source shader doesn't
+  // have — this water body is a fixed island with a real "further out
+  // = deeper" gradient, not an infinite floor.
+  uniform float uDuneRadius;
+  uniform float uDeepRadius;
+
+  varying vec2 vWorldPos;
+
+  vec2 hash2(vec2 p) {
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return fract(sin(p) * 43758.5453);
+  }
+
+  float smin(float a, float b, float k) {
+    float h = max(k - abs(a - b), 0.0) / k;
+    return min(a, b) - h * h * h * k / 6.0;
+  }
+
+  vec2 cellPt(vec2 seed) {
+    return 0.5 + 0.5 * sin(uTime * uCellSpeed + 6.2831 * seed);
+  }
+
+  float voronoiF1(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    float md = 8.0;
+    for (int y = -1; y <= 1; y++)
+      for (int x = -1; x <= 1; x++) {
+        vec2 n = vec2(float(x), float(y));
+        vec2 pt = cellPt(hash2(i + n));
+        md = min(md, length(n + pt - f));
+      }
+    return md;
+  }
+
+  float voronoiSF1(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    float res = 8.0;
+    for (int y = -1; y <= 1; y++)
+      for (int x = -1; x <= 1; x++) {
+        vec2 n = vec2(float(x), float(y));
+        vec2 pt = cellPt(hash2(i + n));
+        res = smin(res, length(n + pt - f), uSmoothness);
+      }
+    return res;
+  }
+
+  float nHash(vec2 p) {
+    p = fract(p * vec2(127.1, 311.7));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+  float vnoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(nHash(i), nHash(i + vec2(1.0, 0.0)), f.x),
+      mix(nHash(i + vec2(0.0, 1.0)), nHash(i + vec2(1.0, 1.0)), f.x),
+      f.y
+    );
+  }
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 2; i++) { v += a * vnoise(p); p *= 2.0; a *= 0.5; }
+    return v;
+  }
+
+  void main() {
+    vec2 noiseUV = vWorldPos * uNoiseScale + vec2(uTime * uNoiseFlowSpeed, 0.0);
+    float noiseFac = fbm(noiseUV);
+    vec2 distort = vec2(noiseFac - 0.5) * uDistortAmount;
+
+    vec2 uv = vWorldPos * uScale + vec2(uFlowX, uFlowZ) * uTime + distort;
+
+    float f1 = voronoiF1(uv);
+    float sf1 = voronoiSF1(uv);
+    float edge = f1 - sf1;
+
+    float t = smoothstep(
+      uEdgeThreshold - uEdgeSoftness,
+      uEdgeThreshold + uEdgeSoftness,
+      edge
+    );
+
+    float safeMP = max(uMidPos, 1e-4);
+    float seg0 = clamp(t / safeMP, 0.0, 1.0);
+    float seg1 = clamp((t - safeMP) / max(1.0 - safeMP, 1e-4), 0.0, 1.0);
+    float inSeg1 = step(safeMP, t);
+    vec3 color = mix(
+      mix(uDeepColor, uMidColor, seg0),
+      mix(uMidColor, uHighlight, seg1),
+      inSeg1
+    );
+
+    float rippleAcc = 0.0;
+    for (int i = 0; i < 8; i++) {
+      float isOn = step(float(i), float(uRippleCount) - 0.5);
+      float elapsed = max(uTime - uRippleTimes[i], 0.0);
+      float d = length(vWorldPos - uRippleCenters[i]);
+      for (int r = 0; r < 4; r++) {
+        float rIsOn = step(float(r), float(uRippleRings) - 0.5);
+        float re = max(elapsed - float(r) * uRippleSpacing, 0.0);
+        float ringR = re * uRippleSpeed;
+        float ringDist = abs(d - ringR);
+        float ring = 1.0 - smoothstep(0.0, uRippleWidth, ringDist);
+        float fade = exp(-re * uRippleDecay);
+        rippleAcc += ring * fade * isOn * rIsOn;
+      }
+    }
+    float ripple = clamp(rippleAcc * uRippleStrength, 0.0, 1.0);
+    color = mix(color, uHighlight, ripple);
+
+    // Further from the island = deeper open sea, darkened on top of
+    // the cell pattern rather than replacing it.
+    float distFromIsland = length(vWorldPos);
+    float depthT = smoothstep(uDuneRadius, uDeepRadius, distFromIsland);
+    color = mix(color, uDeepColor, depthT * 0.45);
+
+    float dist = length(vWorldPos - uCamXZ);
+    float fade = 1.0 - pow(clamp(dist / uFadeDistance, 0.0, 1.0), uFadeStrength);
+
+    float baseAlpha = mix(uDeepOpacity, 1.0, depthT);
+    float alpha = mix(baseAlpha, 1.0, max(t, ripple)) * uOpacity * fade;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
 export function Ocean() {
-  const uniformsRef = useRef<{ uTime: { value: number } } | null>(null);
   const size = (DEEP_RADIUS + 8) * 2;
 
-  const onBeforeCompile = useMemo(
-    () => (shader: THREE.WebGLProgramParametersWithUniforms) => {
-      shader.uniforms.uTime = { value: 0 };
-      shader.uniforms.uDeepColor = { value: new THREE.Color(OCEAN_DEEP_COLOR) };
-      uniformsRef.current = shader.uniforms as { uTime: { value: number } };
-
-      shader.vertexShader = shader.vertexShader
-        .replace("#include <common>", "#include <common>\nvarying vec3 vWorldPos;")
-        .replace(
-          "#include <begin_vertex>",
-          "#include <begin_vertex>\nvWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;"
-        );
-
-      shader.fragmentShader = shader.fragmentShader
-        .replace(
-          "#include <common>",
-          `#include <common>
-          uniform float uTime;
-          uniform vec3 uDeepColor;
-          varying vec3 vWorldPos;
-          float gFoamMask = 0.0;
-
-          float hash21(vec2 p) {
-            p = fract(p * vec2(123.34, 456.21));
-            p += dot(p, p + 45.32);
-            return fract(p.x * p.y);
-          }
-
-          float valueNoise(vec2 p) {
-            vec2 i = floor(p);
-            vec2 f = fract(p);
-            float a = hash21(i);
-            float b = hash21(i + vec2(1.0, 0.0));
-            float c = hash21(i + vec2(0.0, 1.0));
-            float d = hash21(i + vec2(1.0, 1.0));
-            vec2 u = f * f * (3.0 - 2.0 * f);
-            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-          }`
-        )
-        .replace(
-          // color_fragment (which sets diffuseColor) runs BEFORE
-          // normal_fragment_begin in this shader, so both the ripple
-          // normal and the depth/fresnel tint have to happen here,
-          // after diffuseColor already exists and normal is computed.
-          "#include <normal_fragment_begin>",
-          `#include <normal_fragment_begin>
-          {
-            float w1 = sin(vWorldPos.x * 0.55 + uTime * 1.15);
-            float w2 = sin(vWorldPos.z * 0.4 - uTime * 0.85 + vWorldPos.x * 0.2);
-            vec3 ripple = normalize(vec3(w1 * 0.35, w2 * 0.35, 1.0));
-            normal = normalize(mix(normal, ripple, 0.5));
-
-            float dist = length(vWorldPos.xz);
-            float depthT = smoothstep(${DUNE_RADIUS.toFixed(1)}, ${DEEP_RADIUS.toFixed(1)}, dist);
-            diffuseColor.rgb = mix(diffuseColor.rgb, uDeepColor, depthT);
-
-            vec3 viewDir = normalize(vViewPosition);
-            float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), 3.0);
-
-            float shallowAlpha = 0.32;
-            float deepAlpha = 0.88;
-            diffuseColor.a = mix(mix(shallowAlpha, deepAlpha, depthT), 1.0, fresnel * 0.6);
-
-            // Toon-water-style foam: a crisp, organically-scalloped band
-            // where the water meets the shore, instead of a smooth alpha
-            // gradient — the "hard edge that hugs the geometry it
-            // touches" look from ToonWaterShader-style techniques, done
-            // here with an analytic shoreline radius rather than a full
-            // scene-depth prepass, since the only thing our water ever
-            // meets is this one shoreline.
-            vec2 p = vWorldPos.xz;
-            float angle = atan(p.y, p.x);
-            vec2 edgeCoord = vec2(cos(angle), sin(angle)) * 3.2 + uTime * 0.035;
-            float edgeNoise = (valueNoise(edgeCoord) - 0.5) * 2.6;
-            float shoreR = ${DUNE_RADIUS.toFixed(1)} + edgeNoise;
-            float lap = sin(uTime * 1.4 + edgeNoise * 4.0) * 0.3;
-            float band = (dist - shoreR) - lap;
-
-            float bandWidth = 1.5;
-            float t = band / bandWidth;
-            float aa = 0.08;
-            float foamBand = smoothstep(-aa, aa, t) * (1.0 - smoothstep(1.0 - aa, 1.0 + aa, t));
-
-            float speckleField = valueNoise(p * 1.6 + uTime * 0.08);
-            float speckleMask = step(0.78, speckleField);
-            float speckleFade = smoothstep(bandWidth + 2.6, bandWidth * 0.3, band);
-            speckleMask *= speckleFade * step(-0.2, band);
-
-            float foamMask = clamp(foamBand + speckleMask * 0.7, 0.0, 1.0);
-            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 1.0, 0.98), foamMask);
-            diffuseColor.a = mix(diffuseColor.a, 1.0, foamMask);
-            gFoamMask = foamMask;
-          }`
-        )
-        .replace(
-          // A thresholded pattern (smoothstep cutting a sine field)
-          // reads as discrete blobs/spots at most viewing distances —
-          // tried it, looked like a leopard print. Dropped the
-          // threshold entirely: this is a continuous, low-amplitude
-          // brightness wash — three overlapping sine fields at
-          // different scales/directions, summed and normalized to
-          // 0..1, no hard edge anywhere. Reads as gentle dappled
-          // shimmer instead of spots, and still visibly animates.
-          "#include <emissivemap_fragment>",
-          `#include <emissivemap_fragment>
-          {
-            vec2 p = vWorldPos.xz;
-            float s1 = sin(p.x * 0.9 + p.y * 0.3 + uTime * 0.8);
-            float s2 = sin(p.x * 0.35 - p.y * 1.1 - uTime * 0.55);
-            float s3 = sin(p.x * 1.6 + p.y * 1.4 + uTime * 1.1) * 0.5;
-            float shimmer = (s1 + s2 + s3) / 2.5 * 0.5 + 0.5;
-
-            totalEmissiveRadiance += vec3(1.0, 0.98, 0.88) * shimmer * 0.1;
-            totalEmissiveRadiance += vec3(1.0, 1.0, 0.95) * gFoamMask * 0.5;
-          }`
-        );
-    },
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: THREE.FrontSide,
+        vertexShader: VERT,
+        fragmentShader: FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uScale: { value: 0.3 },
+          uSmoothness: { value: 0.55 },
+          uEdgeThreshold: { value: 0.067 },
+          uEdgeSoftness: { value: 0.012 },
+          uFlowX: { value: 0 },
+          uFlowZ: { value: 0.04 },
+          uCellSpeed: { value: 0.3 },
+          uNoiseScale: { value: 1.52 },
+          uNoiseFlowSpeed: { value: 0.2 },
+          uDistortAmount: { value: 0.3 },
+          uDeepColor: { value: new THREE.Color(OCEAN_DEEP_COLOR) },
+          uMidColor: { value: new THREE.Color(OCEAN_COLOR) },
+          uMidPos: { value: 0.084 },
+          uHighlight: { value: new THREE.Color("#f4fcff") },
+          uOpacity: { value: 1.0 },
+          uDeepOpacity: { value: 0.4 },
+          uFadeDistance: { value: DEEP_RADIUS + 14 },
+          uFadeStrength: { value: 1.4 },
+          uCamXZ: { value: new THREE.Vector2() },
+          uRippleCenters: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+          uRippleTimes: { value: new Array(8).fill(0) },
+          uRippleCount: { value: 0 },
+          uRippleSpeed: { value: 1.5 },
+          uRippleWidth: { value: 0.12 },
+          uRippleStrength: { value: 5.5 },
+          uRippleDecay: { value: 1.6 },
+          uRippleRings: { value: 2 },
+          uRippleSpacing: { value: 1.0 },
+          uDuneRadius: { value: DUNE_RADIUS },
+          uDeepRadius: { value: DEEP_RADIUS },
+        },
+      }),
     []
   );
 
-  useFrame(({ clock }) => {
-    if (uniformsRef.current) uniformsRef.current.uTime.value = clock.getElapsedTime();
+  const materialRef = useRef(material);
+  materialRef.current = material;
+
+  useFrame(({ clock, camera }) => {
+    const u = materialRef.current.uniforms;
+    u.uTime.value = clock.getElapsedTime();
+    u.uCamXZ.value.set(camera.position.x, camera.position.z);
   });
 
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, OCEAN_Y, 0]} receiveShadow>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, OCEAN_Y, 0]}>
       <planeGeometry args={[size, size, 2, 2]} />
-      <meshStandardMaterial
-        color={OCEAN_COLOR}
-        roughness={0.25}
-        metalness={0.05}
-        transparent
-        onBeforeCompile={onBeforeCompile}
-      />
+      <primitive object={material} attach="material" />
     </mesh>
   );
 }

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "orders": [
+    { "id": "o_apple", "price": 3, "itemModelId": "model_apple", "purse": [1, 1, 1] },
+    { "id": "o_pear", "price": 4, "itemModelId": "model_pear", "purse": [1, 1, 1, 1] },
+    { "id": "o_bread", "price": 5, "itemModelId": "model_bread", "purse": [5, 1, 1] },
+    { "id": "o_fish", "price": 6, "itemModelId": "model_fish", "purse": [5, 1, 1, 1] },
+    { "id": "o_cheese", "price": 7, "itemModelId": "model_cheese", "purse": [5, 1, 1] },
+    { "id": "o_corn", "price": 8, "itemModelId": "model_corn", "purse": [5, 5, 1, 1, 1] },
+    { "id": "o_carrot", "price": 9, "itemModelId": "model_carrot", "purse": [5, 5, 1, 1, 1, 1] },
+    { "id": "o_egg", "price": 10, "itemModelId": "model_egg", "purse": [5, 5] },
+    { "id": "o_honey", "price": 11, "itemModelId": "model_honey", "purse": [5, 5, 1] },
+    { "id": "o_mushroom", "price": 12, "itemModelId": "model_mushroom", "purse": [5, 5, 1, 1] },
+    { "id": "o_grape", "price": 13, "itemModelId": "model_grape", "purse": [5, 5, 1, 1, 1] },
+    { "id": "o_plum", "price": 14, "itemModelId": "model_plum", "purse": [5, 5, 1, 1, 1, 1] }
+  ]
+}

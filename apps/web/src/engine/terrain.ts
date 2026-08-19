@@ -55,6 +55,27 @@ export function islandHeight(x: number, z: number): number {
   return -4.2 * slopeT + floorTexture;
 }
 
+// The dune zone's height is two blended noise octaves (a broad "which
+// region is a real dip" signal plus a finer ripple texture on top).
+// The ripple alone crosses height 0 constantly, which is fine as a
+// dry-sand texture but means a naive "foam wherever height ≈ 0" mask
+// lights up the entire dune ring, not just real ponds. This returns
+// just the broad octave (envelope-scaled, same as islandHeight), so
+// callers can gate foam on "is this part of a real depression" and
+// only foam the true edges of visible ponds. Outside the dune zone
+// there's no ripple-crossing problem (the coast is one smooth
+// monotonic slope), so this returns a value that always gates open.
+export function islandPondDepth(x: number, z: number): number {
+  const r = Math.hypot(x, z);
+  if (r <= FLAT_RADIUS) return 0;
+  if (r <= DUNE_RADIUS) {
+    const t = smoothstep(FLAT_RADIUS, DUNE_RADIUS, r);
+    const bump = Math.sin(t * Math.PI);
+    return noise2D(x * 0.09, z * 0.09) * 0.6 * 1.2 * bump;
+  }
+  return -10;
+}
+
 export function terrainZone(height: number): "dry" | "wet" | "shallow" | "deep" {
   if (height > 0.15) return "dry";
   if (height > -0.15) return "wet";

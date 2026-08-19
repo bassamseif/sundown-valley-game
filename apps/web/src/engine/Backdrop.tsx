@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Sparkles } from "@react-three/drei";
 import * as THREE from "three";
+import { GrassTuft } from "./GrassTuft";
 import { Ocean } from "./Ocean";
 import { PalmTree } from "./PalmTree";
 import { Island } from "./Island";
@@ -25,6 +26,38 @@ const PALM_PLACEMENTS = [
   const x = Math.cos(rad) * radius;
   const z = Math.sin(rad) * radius;
   return { position: [x, islandHeight(x, z), z] as [number, number, number], scale, lean: (Math.random() - 0.5) * 0.16 };
+});
+
+// A ring of overlapping clusters framing the puzzle table itself — a
+// lawn border around the play area, visible from every camera angle,
+// not just background dressing behind it. The ring sits at a radius
+// safely inside FLAT_RADIUS (8.5) even after each cluster's own
+// scatter radius is added, so every blade lands on guaranteed-flat
+// ground rather than the dune noise starting just past that edge.
+// Every loop camera sits on the +Z side looking back toward the
+// origin, so a ring truly centered on the puzzle has its near half
+// crowded right up against (or behind) the camera — barely visible —
+// while only the far half reads. Centering the ring itself further
+// toward -Z (away from the camera) instead pulls that near edge back
+// to a comfortable mid-distance, so most of the loop sits inside the
+// frame at once, while its center-to-origin offset plus its own
+// radius still stays inside FLAT_RADIUS (8.5).
+const GRASS_RING_COUNT = 14;
+const GRASS_RING_RADIUS = 6.2;
+const GRASS_RING_CENTER: [number, number] = [0, -1.8];
+const GRASS_CLUSTER_RADIUS = 1.5;
+const GRASS_PATCH_CLUSTERS = Array.from({ length: GRASS_RING_COUNT }, (_, i) => {
+  const angle = (i / GRASS_RING_COUNT) * Math.PI * 2;
+  const x = GRASS_RING_CENTER[0] + Math.cos(angle) * GRASS_RING_RADIUS;
+  const z = GRASS_RING_CENTER[1] + Math.sin(angle) * GRASS_RING_RADIUS;
+  return {
+    x,
+    z,
+    radius: GRASS_CLUSTER_RADIUS,
+    count: 55,
+    seed: 500 + i * 37,
+    position: [x, islandHeight(x, z), z] as [number, number, number],
+  };
 });
 
 // A beach at golden hour: procedural atmospheric sky (no HDR/network
@@ -91,6 +124,12 @@ export function Backdrop() {
 
       {PALM_PLACEMENTS.map((p, i) => (
         <PalmTree key={i} position={p.position} scale={p.scale} lean={p.lean} />
+      ))}
+      {PALM_PLACEMENTS.map((p, i) => (
+        <GrassTuft key={i} position={p.position} radius={0.75 * p.scale} count={30} seed={i * 97 + 11} />
+      ))}
+      {GRASS_PATCH_CLUSTERS.map((c, i) => (
+        <GrassTuft key={i} position={c.position} radius={c.radius} count={c.count} seed={c.seed} />
       ))}
     </>
   );

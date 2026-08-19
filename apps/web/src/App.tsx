@@ -2,11 +2,14 @@ import { useState } from "react";
 import { ErrorBoundary } from "./engine/ErrorBoundary";
 import { SceneShell } from "./engine/SceneShell";
 import { GeometryCombineScene } from "./scenes/GeometryCombineScene";
+import { MarketDayScene } from "./scenes/MarketDayScene";
 import { PipeAlignScene } from "./scenes/PipeAlignScene";
 import { SoundForgeScene } from "./scenes/SoundForgeScene";
 import { StructuralBridgeScene } from "./scenes/StructuralBridgeScene";
+import { SunProgressBadge } from "./engine/SunProgressBadge";
+import { HIDE_DISABLED, LOOP_ENABLED } from "./loopFlags";
 
-type Loop = "geometry" | "pipes" | "bridge" | "forge";
+type Loop = "geometry" | "pipes" | "bridge" | "forge" | "market";
 
 const LOOPS: { id: Loop; label: string; icon: string; gradient: string; instruction: string }[] = [
   {
@@ -37,16 +40,26 @@ const LOOPS: { id: Loop; label: string; icon: string; gradient: string; instruct
     gradient: "linear-gradient(135deg, #7fe3c9, #ffb570)",
     instruction: "Tap a pebble to place it in the next open slot. Line up the sounds to build the word.",
   },
+  {
+    id: "market",
+    label: "Market Day",
+    icon: "⚖",
+    gradient: "linear-gradient(135deg, #ffd27f, #ff9d7f)",
+    instruction: "Tap coins to pay the exact price. Watch the scale — level means you paid it exactly.",
+  },
 ];
+
+const VISIBLE_LOOPS = HIDE_DISABLED ? LOOPS.filter((l) => LOOP_ENABLED[l.id]) : LOOPS;
 
 export default function App() {
   const [loop, setLoop] = useState<Loop | null>(null);
   const active = LOOPS.find((l) => l.id === loop) ?? null;
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative", background: "#1a1f2e" }}>
+    <div style={{ width: "100%", minHeight: "100vh", position: "relative", background: "#1a1f2e" }}>
       {loop && (
         <ErrorBoundary key={loop}>
+          <div style={{ width: "100%", height: "100vh" }}>
           <SceneShell
             cameraPosition={
               loop === "geometry"
@@ -55,6 +68,8 @@ export default function App() {
                 ? [4.5, 6.5, 7]
                 : loop === "forge"
                 ? [0, 4.5, 6.5]
+                : loop === "market"
+                ? [0, 5, 7.5]
                 : [0, 6, 11.5]
             }
             target={
@@ -64,15 +79,19 @@ export default function App() {
                 ? [0, 0.4, 0.3]
                 : loop === "forge"
                 ? [0, 0.9, 0.5]
+                : loop === "market"
+                ? [0, 0.9, 0]
                 : [0, 0.6, 0]
             }
-            maxDistance={loop === "bridge" ? 20 : loop === "pipes" ? 15 : loop === "forge" ? 14 : 16}
+            maxDistance={loop === "bridge" ? 20 : loop === "pipes" ? 15 : loop === "forge" || loop === "market" ? 14 : 16}
           >
             {loop === "geometry" && <GeometryCombineScene />}
             {loop === "pipes" && <PipeAlignScene />}
             {loop === "bridge" && <StructuralBridgeScene />}
             {loop === "forge" && <SoundForgeScene />}
+            {loop === "market" && <MarketDayScene />}
           </SceneShell>
+          </div>
         </ErrorBoundary>
       )}
 
@@ -85,15 +104,29 @@ export default function App() {
             Choose a test loop
           </div>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", maxWidth: 760 }}>
-            {LOOPS.map((l) => (
-              <button key={l.id} style={cardStyle(l.gradient)} onClick={() => setLoop(l.id)}>
-                <span style={{ fontSize: 34 }}>{l.icon}</span>
-                <span style={{ fontSize: 15, fontWeight: 700 }}>{l.label}</span>
-              </button>
-            ))}
+            {VISIBLE_LOOPS.map((l) => {
+              const enabled = LOOP_ENABLED[l.id];
+              return (
+                <button
+                  key={l.id}
+                  style={cardStyle(l.gradient, enabled)}
+                  disabled={!enabled}
+                  onClick={() => enabled && setLoop(l.id)}
+                >
+                  <span style={{ fontSize: 34 }}>{l.icon}</span>
+                  <span style={{ fontSize: 15, fontWeight: 700 }}>{l.label}</span>
+                  {!enabled && <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.75 }}>Coming soon</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* The day only starts once a loop is actually running — showing
+          it on the menu would mean the cycle is already partway "done"
+          before the child has even picked something to play. */}
+      {loop && <SunProgressBadge />}
 
       {active && (
         <>
@@ -109,7 +142,9 @@ export default function App() {
 
 const menuWrapStyle: React.CSSProperties = {
   width: "100%",
-  height: "100%",
+  minHeight: "100vh",
+  boxSizing: "border-box",
+  padding: "40px 0",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
@@ -119,28 +154,29 @@ const menuWrapStyle: React.CSSProperties = {
   fontFamily: "system-ui, -apple-system, sans-serif",
 };
 
-function cardStyle(gradient: string): React.CSSProperties {
+function cardStyle(gradient: string, enabled: boolean): React.CSSProperties {
   return {
     width: 190,
     height: 150,
     borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.15)",
-    background: gradient,
-    color: "#1a1f2e",
+    background: enabled ? gradient : "rgba(255,255,255,0.06)",
+    color: enabled ? "#1a1f2e" : "rgba(255,255,255,0.5)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-    cursor: "pointer",
-    boxShadow: "0 12px 30px rgba(0,0,0,0.4)",
+    gap: 8,
+    cursor: enabled ? "pointer" : "default",
+    opacity: enabled ? 1 : 0.55,
+    boxShadow: enabled ? "0 12px 30px rgba(0,0,0,0.4)" : "none",
     transition: "transform 0.15s ease",
   };
 }
 
 const instructionBar: React.CSSProperties = {
   position: "absolute",
-  top: 18,
+  top: 66,
   left: "50%",
   transform: "translateX(-50%)",
   maxWidth: "min(640px, 88vw)",
