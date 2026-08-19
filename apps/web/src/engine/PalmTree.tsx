@@ -1,6 +1,55 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 
+// A single smoothly-tapered, smoothly-bent trunk instead of three
+// straight cylinder segments glued at angled joints — the segmented
+// version left visible kinks/gaps at each joint and each segment's
+// own end caps showed through. Building one tube along a curve with
+// a radius that tapers along its length reads as one consistent
+// trunk instead of three mismatched pieces.
+function buildTaperedTrunk(curve: THREE.Curve<THREE.Vector3>, radiusStart: number, radiusEnd: number) {
+  const tubularSegments = 16;
+  const radialSegments = 8;
+  const frames = curve.computeFrenetFrames(tubularSegments, false);
+  const positions: number[] = [];
+  const indices: number[] = [];
+
+  for (let i = 0; i <= tubularSegments; i++) {
+    const t = i / tubularSegments;
+    const point = curve.getPointAt(t);
+    const normal = frames.normals[i];
+    const binormal = frames.binormals[i];
+    const radius = THREE.MathUtils.lerp(radiusStart, radiusEnd, t);
+
+    for (let j = 0; j <= radialSegments; j++) {
+      const angle = (j / radialSegments) * Math.PI * 2;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const x = point.x + radius * (cos * normal.x + sin * binormal.x);
+      const y = point.y + radius * (cos * normal.y + sin * binormal.y);
+      const z = point.z + radius * (cos * normal.z + sin * binormal.z);
+      positions.push(x, y, z);
+    }
+  }
+
+  const ringSize = radialSegments + 1;
+  for (let i = 0; i < tubularSegments; i++) {
+    for (let j = 0; j < radialSegments; j++) {
+      const a = i * ringSize + j;
+      const b = (i + 1) * ringSize + j;
+      const c = (i + 1) * ringSize + j + 1;
+      const d = i * ringSize + j + 1;
+      indices.push(a, b, d, b, c, d);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 // A lance-shaped leaf outline (wide at the base, tapered to a point),
 // extruded flat. This is what actually reads as "palm frond" instead
 // of the pine-tree silhouette a cone gives you.
@@ -47,22 +96,26 @@ export function PalmTree({
 }) {
   const frondCount = 8;
 
+  const trunkCurve = useMemo(
+    () =>
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(lean * 1.4, 1.3, 0),
+        new THREE.Vector3(lean * 3.2, 2.6, 0),
+        new THREE.Vector3(lean * 4, 3.4, 0),
+      ]),
+    [lean]
+  );
+  const trunkGeo = useMemo(() => buildTaperedTrunk(trunkCurve, 0.17, 0.06), [trunkCurve]);
+  const crownPos = useMemo(() => trunkCurve.getPointAt(1), [trunkCurve]);
+
   return (
     <group position={position} scale={scale}>
-      <mesh position={[0, 1.1, 0]} rotation={[0, 0, lean]} castShadow>
-        <cylinderGeometry args={[0.11, 0.17, 2.2, 7]} />
-        <meshStandardMaterial color="#8a6a4a" roughness={0.85} />
-      </mesh>
-      <mesh position={[lean * 3, 2.3, 0]} rotation={[0, 0.4, lean * 2]} castShadow>
-        <cylinderGeometry args={[0.07, 0.11, 1.4, 7]} />
-        <meshStandardMaterial color="#8a6a4a" roughness={0.85} />
-      </mesh>
-      <mesh position={[lean * 3.6, 2.95, 0]} rotation={[0, 0.4, lean * 2.6]} castShadow>
-        <cylinderGeometry args={[0.05, 0.07, 0.6, 6]} />
-        <meshStandardMaterial color="#8a6a4a" roughness={0.85} />
+      <mesh geometry={trunkGeo} castShadow>
+        <meshStandardMaterial color="#8a6a4a" roughness={0.8} />
       </mesh>
 
-      <group position={[lean * 4, 3.3, 0]}>
+      <group position={[crownPos.x, crownPos.y, crownPos.z]}>
         {Array.from({ length: frondCount }).map((_, i) => (
           <Frond
             key={i}
