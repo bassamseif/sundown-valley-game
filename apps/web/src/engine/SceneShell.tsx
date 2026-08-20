@@ -49,16 +49,24 @@ function CameraRig({ cameraPosition, target }: { cameraPosition: [number, number
 
   useFrame((_, delta) => {
     if (performance.now() > activeUntilRef.current) return;
+    // Clamp delta before damping: the frame right after picking a loop
+    // (mounting the new scene, unmounting the old one) is often a real
+    // hitch with an inflated delta, which made THREE.MathUtils.damp's
+    // very first step cover most of the distance in one jump — then
+    // the rest of the transition, with normal small deltas, looked
+    // smooth by comparison. Capping it keeps every step's proportional
+    // move consistent regardless of frame timing.
+    const dt = Math.min(delta, 1 / 30);
     const dampFactor = 2.6;
-    camera.position.x = THREE.MathUtils.damp(camera.position.x, cameraPosition[0], dampFactor, delta);
-    camera.position.y = THREE.MathUtils.damp(camera.position.y, cameraPosition[1], dampFactor, delta);
-    camera.position.z = THREE.MathUtils.damp(camera.position.z, cameraPosition[2], dampFactor, delta);
+    camera.position.x = THREE.MathUtils.damp(camera.position.x, cameraPosition[0], dampFactor, dt);
+    camera.position.y = THREE.MathUtils.damp(camera.position.y, cameraPosition[1], dampFactor, dt);
+    camera.position.z = THREE.MathUtils.damp(camera.position.z, cameraPosition[2], dampFactor, dt);
 
     const oc = controls as OrbitControlsImpl | null;
     if (oc) {
-      oc.target.x = THREE.MathUtils.damp(oc.target.x, target[0], dampFactor, delta);
-      oc.target.y = THREE.MathUtils.damp(oc.target.y, target[1], dampFactor, delta);
-      oc.target.z = THREE.MathUtils.damp(oc.target.z, target[2], dampFactor, delta);
+      oc.target.x = THREE.MathUtils.damp(oc.target.x, target[0], dampFactor, dt);
+      oc.target.y = THREE.MathUtils.damp(oc.target.y, target[1], dampFactor, dt);
+      oc.target.z = THREE.MathUtils.damp(oc.target.z, target[2], dampFactor, dt);
       oc.update();
     }
   });
