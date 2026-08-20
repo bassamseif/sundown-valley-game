@@ -26,6 +26,17 @@ export function initAnalytics() {
       // No text inputs anywhere in this game, but mask by default
       // anyway as a deliberate default rather than an oversight.
       maskAllInputs: true,
+      // The whole game is a WebGL <canvas> — normal replay only
+      // records the DOM, so without this the recording would show an
+      // empty box for the entire play area. Snapshots canvas pixels
+      // as periodic frames instead of a live video; capped at a low
+      // fps/quality since this is a mostly-static, slow-motion scene
+      // (no need for smooth video, just "what did the child see").
+      captureCanvas: {
+        recordCanvas: true,
+        canvasFps: 4,
+        canvasQuality: "0.4",
+      },
     },
   });
   // Dev vs. prod is one project, filtered by this property in PostHog,
