@@ -5,7 +5,6 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { Backdrop } from "./Backdrop";
 import { ShaderWarmup } from "./ShaderWarmup";
-import { LensCurve } from "./LensCurve";
 
 type Props = React.PropsWithChildren<{
   cameraPosition?: [number, number, number];
@@ -96,7 +95,6 @@ export function SceneShell({ children, cameraPosition = [0, 6, 9], target = [0, 
       <ContactShadows position={[0, 0.01, 0]} opacity={0.55} scale={20} blur={2.2} far={4} />
       <OrbitControls makeDefault enablePan={false} minDistance={4} maxDistance={maxDistance} maxPolarAngle={Math.PI / 2.35} />
       <CameraRig cameraPosition={cameraPosition} target={target} />
-      <LensCurve />
     </Canvas>
   );
 }
