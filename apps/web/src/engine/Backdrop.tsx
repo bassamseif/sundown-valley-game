@@ -9,7 +9,7 @@ import { Island } from "./Island";
 import { Mountains } from "./Mountains";
 import { Skybox } from "./Skybox";
 import { islandHeight } from "./terrain";
-import { AZIMUTH_DEG, sunState } from "./sunCycle";
+import { AZIMUTH_DEG, elapsedSeconds, sunState } from "./sunCycle";
 
 // Palms planted around the dune ring so the beach reads as surrounding
 // the puzzle from every orbit angle, each sitting at the terrain's own
@@ -70,8 +70,12 @@ export function Backdrop() {
   const sunLightRef = useRef<THREE.DirectionalLight>(null);
   const fogRef = useRef<THREE.FogExp2>(null);
 
-  useFrame(({ clock }) => {
-    const { dir, setProgress } = sunState(clock.getElapsedTime());
+  useFrame(() => {
+    // elapsedSeconds() tracks the whole session (see sunCycle.ts), not
+    // this <Canvas>'s own clock — R3F's clock.getElapsedTime() resets
+    // to 0 on every remount, which is exactly the "resets every round"
+    // bug this replaces.
+    const { dir, setProgress } = sunState(elapsedSeconds());
 
     if (sunLightRef.current) {
       sunLightRef.current.position.copy(dir).multiplyScalar(30);

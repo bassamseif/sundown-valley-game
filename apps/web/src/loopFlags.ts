@@ -4,7 +4,7 @@ export const LOOP_ENABLED = {
   geometry: false,
   pipes: false,
   bridge: false,
-  forge: true,
+  forge: false,
   market: true,
 } as const;
 

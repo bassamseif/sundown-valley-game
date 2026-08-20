@@ -172,6 +172,11 @@ export function MarketDayScene() {
             onTap: () => handleCoinTap(c.id),
             scale: 1.3,
             hinted: c.id === nextHintCoinId,
+            // Pop in one after another rather than all at once — timed
+            // to start as the camera's fly-in into this loop (see
+            // SceneShell's CameraRig) is finishing, not while it's
+            // still moving.
+            appearDelay: 1.3 + fixedIndex * 0.12,
           };
         }),
         ...bowlCoins.map((c, i) => ({

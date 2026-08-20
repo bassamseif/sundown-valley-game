@@ -32,6 +32,13 @@ type CoinProps = {
   // decoration (see CLAUDE.md: touchability should read through the
   // object itself first).
   hinted?: boolean;
+  // Seconds to wait, from this coin's own mount, before it pops in
+  // (scales up from 0) — lets a fresh order's coins arrive one after
+  // another instead of all popping in at once. Purely a one-time mount
+  // effect: since a coin is one stable element for its whole life (see
+  // above), this never replays later just because the coin's anchor or
+  // value prop changes.
+  appearDelay?: number;
 };
 
 // A coin is a WeightPiece — the exact same shape family as the price's
@@ -46,11 +53,12 @@ type CoinProps = {
 // itself moving because the beam is tilting. Tapping it just swaps
 // which anchor it's damping toward, so the whole purse-to-scale trip
 // (and the ongoing ride once it's landed) is one continuous motion.
-export function Coin({ value, anchor, onTap, scale = 1, hinted = false }: CoinProps) {
+export function Coin({ value, anchor, onTap, scale = 1, hinted = false, appearDelay = 0 }: CoinProps) {
   const groupRef = useRef<THREE.Group>(null);
   const pulseRef = useRef(0);
-  const currentScaleRef = useRef(scale);
+  const currentScaleRef = useRef(0);
   const initialized = useRef(false);
+  const mountTimeRef = useRef(performance.now());
 
   useFrame((_, delta) => {
     const group = groupRef.current;
@@ -59,7 +67,6 @@ export function Coin({ value, anchor, onTap, scale = 1, hinted = false }: CoinPr
 
     if (!initialized.current) {
       group.position.set(target[0], target[1], target[2]);
-      currentScaleRef.current = scale;
       initialized.current = true;
     } else {
       group.position.x = THREE.MathUtils.damp(group.position.x, target[0], 6, delta);
@@ -75,7 +82,8 @@ export function Coin({ value, anchor, onTap, scale = 1, hinted = false }: CoinPr
       const horizDist = Math.hypot(target[0] - group.position.x, target[2] - group.position.z);
       const hop = Math.min(horizDist * 0.35, 0.45);
       group.position.y = THREE.MathUtils.damp(group.position.y, target[1] + hop, 6, delta);
-      currentScaleRef.current = THREE.MathUtils.damp(currentScaleRef.current, scale, 6, delta);
+      const appeared = (performance.now() - mountTimeRef.current) / 1000 >= appearDelay;
+      currentScaleRef.current = THREE.MathUtils.damp(currentScaleRef.current, appeared ? scale : 0, 6, delta);
     }
 
     pulseRef.current = THREE.MathUtils.damp(pulseRef.current, 0, 6, delta);

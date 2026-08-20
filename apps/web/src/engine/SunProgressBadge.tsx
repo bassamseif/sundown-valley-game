@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { CYCLE_SECONDS } from "./sunCycle";
-
-const MOUNT_TIME = performance.now();
+import { CYCLE_SECONDS, elapsedSeconds } from "./sunCycle";
 
 // A small DOM/SVG overlay, not a 3D scene object — the in-Canvas sun
 // already tells this story at full scale, but it's easy to miss mid-
@@ -10,16 +8,16 @@ const MOUNT_TIME = performance.now();
 // descending toward one horizon (sunset) — a one-way quarter arc, not
 // a full rise-then-set sweep, since "start high, end low" is what
 // actually reads as "how much is done vs. left," not a side-to-side
-// motion. Runs its own clock rather than reading the R3F clock, since
-// this lives outside the Canvas — close enough for a decorative
-// readout.
+// motion. Reads elapsedSeconds() — the same session-wide clock the
+// in-scene sun (Backdrop.tsx) drives off — rather than the R3F clock,
+// since this lives outside any Canvas; also means this badge and the
+// 3D sun can never drift out of sync with each other.
 export function SunProgressBadge() {
   const [cycleFrac, setCycleFrac] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      const t = (performance.now() - MOUNT_TIME) / 1000;
-      setCycleFrac((t % CYCLE_SECONDS) / CYCLE_SECONDS);
+      setCycleFrac((elapsedSeconds() % CYCLE_SECONDS) / CYCLE_SECONDS);
     }, 100);
     return () => clearInterval(id);
   }, []);
