@@ -22,7 +22,15 @@ type Props = React.PropsWithChildren<{
 // a player free-orbiting mid-puzzle is never fought by this every frame.
 const TRANSITION_MS = 1700;
 
-function CameraRig({ cameraPosition, target }: { cameraPosition: [number, number, number]; target: [number, number, number] }) {
+function CameraRig({
+  cameraPosition,
+  target,
+  maxDistance,
+}: {
+  cameraPosition: [number, number, number];
+  target: [number, number, number];
+  maxDistance: number;
+}) {
   const { camera, controls } = useThree();
   const activeUntilRef = useRef(0);
   const mountedRef = useRef(false);
@@ -38,6 +46,7 @@ function CameraRig({ cameraPosition, target }: { cameraPosition: [number, number
       const oc = controls as OrbitControlsImpl | null;
       if (oc) {
         oc.target.set(...target);
+        oc.maxDistance = maxDistance;
         oc.update();
       }
       mountedRef.current = true;
@@ -48,7 +57,15 @@ function CameraRig({ cameraPosition, target }: { cameraPosition: [number, number
   }, [cameraPosition[0], cameraPosition[1], cameraPosition[2], target[0], target[1], target[2]]);
 
   useFrame((_, delta) => {
-    if (performance.now() > activeUntilRef.current) return;
+    if (performance.now() > activeUntilRef.current) {
+      // Not transitioning: make sure the real limit is in force (see
+      // below — it's relaxed during a transition and needs restoring
+      // once one ends, since the last transitioning frame's relaxed
+      // value can sit a hair above the real limit forever otherwise).
+      const oc = controls as OrbitControlsImpl | null;
+      if (oc && oc.maxDistance !== maxDistance) oc.maxDistance = maxDistance;
+      return;
+    }
     // Clamp delta before damping: the frame right after picking a loop
     // (mounting the new scene, unmounting the old one) is often a real
     // hitch with an inflated delta, which made THREE.MathUtils.damp's
@@ -67,6 +84,16 @@ function CameraRig({ cameraPosition, target }: { cameraPosition: [number, number
       oc.target.x = THREE.MathUtils.damp(oc.target.x, target[0], dampFactor, dt);
       oc.target.y = THREE.MathUtils.damp(oc.target.y, target[1], dampFactor, dt);
       oc.target.z = THREE.MathUtils.damp(oc.target.z, target[2], dampFactor, dt);
+      // OrbitControls.update() clamps the orbit radius to maxDistance
+      // instantly, with no damping of its own — switching to a loop
+      // with a tighter maxDistance than the menu's used to snap the
+      // radius down in one step the moment this ran, before our own
+      // damping above had moved anything, which read as a sudden jump
+      // right at the start of an otherwise-smooth tween. Relaxing the
+      // limit to whatever the current distance actually is (never
+      // tighter) while transitioning means update() has nothing to
+      // clamp; the real limit is restored the instant the tween ends.
+      oc.maxDistance = Math.max(camera.position.distanceTo(oc.target) + 0.1, maxDistance);
       oc.update();
     }
   });
@@ -101,8 +128,13 @@ export function SceneShell({ children, cameraPosition = [0, 6, 9], target = [0, 
       <ShaderWarmup />
       {children}
       <ContactShadows position={[0, 0.01, 0]} opacity={0.55} scale={20} blur={2.2} far={4} />
-      <OrbitControls makeDefault enablePan={false} minDistance={4} maxDistance={maxDistance} maxPolarAngle={Math.PI / 2.35} />
-      <CameraRig cameraPosition={cameraPosition} target={target} />
+      {/* maxDistance is deliberately not set here — CameraRig owns it
+          imperatively (see there for why: OrbitControls.update() clamps
+          radius to this value with no damping of its own, which would
+          otherwise snap the camera the instant a tighter-limit loop is
+          selected, before CameraRig's own tween has moved anything). */}
+      <OrbitControls makeDefault enablePan={false} minDistance={4} maxPolarAngle={Math.PI / 2.35} />
+      <CameraRig cameraPosition={cameraPosition} target={target} maxDistance={maxDistance} />
     </Canvas>
   );
 }
