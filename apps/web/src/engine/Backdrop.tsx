@@ -66,22 +66,40 @@ const GRASS_PATCH_CLUSTERS = Array.from({ length: GRASS_RING_COUNT }, (_, i) => 
 // framing the puzzle area. This IS the brief's "game that goes to bed"
 // identity, just always-on here so the mood reads instantly in a test
 // loop instead of only at the 15-minute mark.
-export function Backdrop() {
+export function Backdrop({ active = false }: { active?: boolean }) {
   const sunLightRef = useRef<THREE.DirectionalLight>(null);
+  const ambientRef = useRef<THREE.AmbientLight>(null);
+  const hemiRef = useRef<THREE.HemisphereLight>(null);
   const fogRef = useRef<THREE.FogExp2>(null);
+  // How far into a puzzle's own light boost we are, damped rather than
+  // snapped — fades in/out alongside the camera's own fly-to-loop
+  // transition (SceneShell's CameraRig) instead of popping brighter
+  // the instant a loop is picked.
+  const boostRef = useRef(0);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     // elapsedSeconds() tracks the whole session (see sunCycle.ts), not
     // this <Canvas>'s own clock — R3F's clock.getElapsedTime() resets
     // to 0 on every remount, which is exactly the "resets every round"
     // bug this replaces.
     const { dir, setProgress } = sunState(elapsedSeconds());
+    const dt = Math.min(delta, 1 / 30);
+    boostRef.current = THREE.MathUtils.damp(boostRef.current, active ? 1 : 0, 2, dt);
+    // Brighter once you're actually in a puzzle than on the wide,
+    // moodier menu shot — the menu's dimness is the "sundown" identity,
+    // but once a child is trying to read a puzzle's own materials,
+    // legibility matters more than atmosphere. Multiplicative, not a
+    // global exposure bump, so the sunset's own colors/contrast still
+    // read the same — only brightness scales.
+    const boost = 1 + boostRef.current * 0.5;
 
     if (sunLightRef.current) {
       sunLightRef.current.position.copy(dir).multiplyScalar(30);
-      sunLightRef.current.intensity = THREE.MathUtils.lerp(2.1, 1.35, setProgress);
+      sunLightRef.current.intensity = THREE.MathUtils.lerp(2.1, 1.0, setProgress) * boost;
       sunLightRef.current.color.setHSL(THREE.MathUtils.lerp(0.14, 0.03, setProgress), 0.85, 0.62);
     }
+    if (ambientRef.current) ambientRef.current.intensity = 0.25 * boost;
+    if (hemiRef.current) hemiRef.current.intensity = 0.45 * boost;
 
     // Fog color uses the exact same HSL formula as the skybox's horizon
     // band (see Skybox.tsx's uHorizon) so it never mismatches the sky
@@ -109,8 +127,8 @@ export function Backdrop() {
           fill light is what was washing every material's color out to
           pastel; letting the directional light do more of the work
           keeps colors reading as saturated hues instead of tints. */}
-      <hemisphereLight args={["#bfe0ff", "#caa06a", 0.45]} />
-      <ambientLight intensity={0.25} color="#ffd9a8" />
+      <hemisphereLight ref={hemiRef} args={["#bfe0ff", "#caa06a", 0.45]} />
+      <ambientLight ref={ambientRef} intensity={0.25} color="#ffd9a8" />
       <directionalLight ref={sunLightRef} castShadow shadow-mapSize={[1024, 1024]}>
         <orthographicCamera attach="shadow-camera" args={[-14, 14, 14, -14, 0.5, 60]} />
       </directionalLight>

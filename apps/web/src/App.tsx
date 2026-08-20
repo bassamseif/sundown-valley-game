@@ -179,7 +179,7 @@ export default function App() {
           when you leave and come back, without tearing down the world
           around it). */}
       <div style={{ width: "100%", height: "100vh" }}>
-        <SceneShell cameraPosition={framing.cameraPosition} target={framing.target} maxDistance={framing.maxDistance}>
+        <SceneShell cameraPosition={framing.cameraPosition} target={framing.target} maxDistance={framing.maxDistance} active={!!loop}>
           {loop && (
             <ErrorBoundary key={loop}>
               <SceneEntrance>

@@ -10,6 +10,7 @@ type Props = React.PropsWithChildren<{
   cameraPosition?: [number, number, number];
   target?: [number, number, number];
   maxDistance?: number;
+  active?: boolean;
 }>;
 
 // Smoothly tweens the live camera position and orbit target toward
@@ -116,15 +117,15 @@ function CameraRig({
 // undoing CameraRig's tween before it can run a single frame.
 const STABLE_CAMERA_CONFIG = { fov: 42 };
 
-export function SceneShell({ children, cameraPosition = [0, 6, 9], target = [0, 0.5, 0], maxDistance = 16 }: Props) {
+export function SceneShell({ children, cameraPosition = [0, 6, 9], target = [0, 0.5, 0], maxDistance = 16, active = false }: Props) {
   return (
     <Canvas
       shadows
       dpr={[1, 2]}
-      gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.35 }}
+      gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.15 }}
       camera={STABLE_CAMERA_CONFIG}
     >
-      <Backdrop />
+      <Backdrop active={active} />
       <ShaderWarmup />
       {children}
       <ContactShadows position={[0, 0.01, 0]} opacity={0.55} scale={20} blur={2.2} far={4} />
