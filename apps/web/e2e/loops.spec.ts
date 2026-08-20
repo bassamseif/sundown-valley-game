@@ -136,13 +136,13 @@ test("market day: overpaying does not solve, and tapping the bowl recovers to ex
 
 test("market day: staying idle shows the instructions modal, and dismissing keeps it hidden for good", async ({ page }) => {
   // Generous budget: on top of the modal's own idle threshold (App.tsx:
-  // IDLE_INTERACTION_MS = 10s) and a further wait to prove a dismiss
+  // IDLE_INTERACTION_MS = 15s) and a further wait to prove a dismiss
   // sticks, this sandbox's software-rendered WebGL can itself take
   // several seconds to first paint (a one-off cold-start/shader-compile
   // stall, not something a real GPU hits) — the idle clock starts at
   // the click, not at first paint, but slow-painting environments still
   // eat into the margin before assertions run.
-  test.setTimeout(50_000);
+  test.setTimeout(60_000);
   await page.getByRole("button", { name: "Market Day" }).click();
   await expect(page.locator("canvas")).toBeVisible();
   await page.waitForFunction(() => (window as any).__sv?.market !== undefined);
@@ -150,7 +150,7 @@ test("market day: staying idle shows the instructions modal, and dismissing keep
   // Not shown immediately on entering — only after going idle.
   await expect(page.getByRole("button", { name: "Got it!" })).toHaveCount(0);
 
-  await expect(page.getByRole("button", { name: "Got it!" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "Got it!" })).toBeVisible({ timeout: 25_000 });
 
   await page.getByRole("button", { name: "Got it!" }).click();
   await expect(page.getByRole("button", { name: "Got it!" })).toHaveCount(0);
@@ -165,8 +165,8 @@ test("market day: staying idle shows the instructions modal, and dismissing keep
 
 test("market day: taking any action suppresses the auto-shown instructions", async ({ page }) => {
   // See the previous test for why the budget is generous — this one
-  // additionally needs to clear the longer 15s failsafe threshold.
-  test.setTimeout(50_000);
+  // additionally needs to clear the longer 20s failsafe threshold.
+  test.setTimeout(60_000);
   await page.getByRole("button", { name: "Market Day" }).click();
 
   // A raw coordinate click, not the locator's actionability-gated
@@ -185,6 +185,6 @@ test("market day: taking any action suppresses the auto-shown instructions", asy
   // rescheduled the shorter idle timer (the bug this test guards
   // against: a single tap used to only push the idle timer's clock
   // back, leaving the failsafe free to still fire later regardless).
-  await page.waitForTimeout(20_000);
+  await page.waitForTimeout(25_000);
   await expect(page.getByRole("button", { name: "Got it!" })).toHaveCount(0);
 });

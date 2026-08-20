@@ -74,12 +74,12 @@ const LOOP_FRAMING: Record<Loop, { cameraPosition: [number, number, number]; tar
 // all) right after arriving, and a longer failsafe that fires
 // regardless of whether they've been interacting (camera orbiting,
 // exploring) if the puzzle itself still hasn't gotten a real move —
-// "no interaction at all for 10s" and "no meaningful progress after
-// 15s" are two different signals of the same underlying problem (the
+// "no interaction at all for 15s" and "no meaningful progress after
+// 20s" are two different signals of the same underlying problem (the
 // child doesn't know what to do), so either one showing the same
 // modal is the point, not a bug.
-const IDLE_INTERACTION_MS = 10000;
-const NO_START_FAILSAFE_MS = 15000;
+const IDLE_INTERACTION_MS = 15000;
+const NO_START_FAILSAFE_MS = 20000;
 
 export default function App() {
   const [loop, setLoop] = useState<Loop | null>(null);
