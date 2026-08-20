@@ -8,6 +8,7 @@ import { PipeAlignScene } from "./scenes/PipeAlignScene";
 import { SoundForgeScene } from "./scenes/SoundForgeScene";
 import { StructuralBridgeScene } from "./scenes/StructuralBridgeScene";
 import { SunProgressBadge } from "./engine/SunProgressBadge";
+import { track } from "./engine/analytics";
 import { HIDE_DISABLED, LOOP_ENABLED } from "./loopFlags";
 
 type Loop = "geometry" | "pipes" | "bridge" | "forge" | "market";
@@ -103,10 +104,14 @@ export default function App() {
     // true (e.g. the dismiss click's own pointerdown, which fires
     // before its click handler runs) must still not show anything.
     const idleTimer = setTimeout(() => {
-      if (!dismissedRef.current) setShowInstructions(true);
+      if (dismissedRef.current) return;
+      setShowInstructions(true);
+      track("instructions_shown", { loop, trigger: "idle" });
     }, IDLE_INTERACTION_MS);
     const failsafe = setTimeout(() => {
-      if (!dismissedRef.current) setShowInstructions(true);
+      if (dismissedRef.current) return;
+      setShowInstructions(true);
+      track("instructions_shown", { loop, trigger: "no_progress" });
     }, NO_START_FAILSAFE_MS);
 
     // The player's first tap/action of any kind — not just dismissing
@@ -139,6 +144,17 @@ export default function App() {
   function dismissInstructions() {
     dismissedRef.current = true;
     setShowInstructions(false);
+    track("instructions_dismissed", { loop });
+  }
+
+  function selectLoop(id: Loop) {
+    setLoop(id);
+    track("loop_selected", { loop: id });
+  }
+
+  function exitLoop() {
+    track("loop_exited", { loop });
+    setLoop(null);
   }
 
   return (
@@ -191,7 +207,7 @@ export default function App() {
                 key={l.id}
                 style={cardStyle(l.gradient, enabled)}
                 disabled={!enabled}
-                onClick={() => enabled && setLoop(l.id)}
+                onClick={() => enabled && selectLoop(l.id)}
               >
                 <span style={{ fontSize: 34 }}>{l.icon}</span>
                 <span style={{ fontSize: 15, fontWeight: 700 }}>{l.label}</span>
@@ -222,7 +238,7 @@ export default function App() {
 
       <button
         style={{ ...backButtonStyle, opacity: active ? 1 : 0, pointerEvents: active ? "auto" : "none" }}
-        onClick={() => setLoop(null)}
+        onClick={exitLoop}
       >
         ← Loops
       </button>

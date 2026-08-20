@@ -15,6 +15,7 @@ import {
   type MarketState,
 } from "../puzzles/marketDay";
 import { exposeTestHook } from "../engine/testHooks";
+import { track } from "../engine/analytics";
 import { BalanceBeam } from "./market/BalanceBeam";
 import { Coin } from "./market/Coin";
 import { COIN_Y, COUNTER_Y, PLATTER_RADIUS, PURSE_Z, footprintRadius, packOnPlatter } from "./market/layout";
@@ -59,8 +60,14 @@ export function MarketDayScene() {
   }
 
   function nextOrder() {
+    track("market_next_order", { orderId: state.orderId });
     setState(initialState(nextOrderId(state)));
   }
+
+  useEffect(() => {
+    if (solved) track("market_order_solved", { orderId: state.orderId, price: order.price, coinCount: state.bowl.length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solved]);
 
   useEffect(() => {
     exposeTestHook("market", {
@@ -97,10 +104,12 @@ export function MarketDayScene() {
         setHintReturnActive(true);
         returnSeenRef.current = true;
         localStorage.setItem(HINT_RETURN_SEEN_KEY, "1");
+        track("market_hint_shown", { kind: "return" });
       } else {
         setHintTapActive(true);
         tapSeenRef.current = true;
         localStorage.setItem(HINT_TAP_SEEN_KEY, "1");
+        track("market_hint_shown", { kind: "tap" });
       }
     }, HINT_IDLE_MS);
     return () => clearTimeout(timer);
