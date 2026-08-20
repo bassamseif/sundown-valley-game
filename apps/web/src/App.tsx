@@ -66,7 +66,7 @@ const LOOP_FRAMING: Record<Loop, { cameraPosition: [number, number, number]; tar
   pipes: { cameraPosition: [4.5, 6.5, 7], target: [0, 0.4, 0.3], maxDistance: 15 },
   bridge: { cameraPosition: [0, 6, 11.5], target: [0, 0.6, 0], maxDistance: 20 },
   forge: { cameraPosition: [0, 4.5, 6.5], target: [0, 0.9, 0.5], maxDistance: 14 },
-  market: { cameraPosition: [0, 5, 7.5], target: [0, 0.9, 0], maxDistance: 14 },
+  market: { cameraPosition: [0, 4, 7.5], target: [0, 1.8, 0], maxDistance: 14 },
 };
 
 // Idle thresholds for surfacing the instruction modal: a shorter one
@@ -99,6 +99,13 @@ export default function App() {
     dismissedRef.current = false;
     if (!loop) return;
 
+    // The explanation only ever needs to happen once per loop, ever —
+    // once the child has seen it (shown, whether dismissed explicitly
+    // or just timed past), re-explaining on every later visit would be
+    // nagging, not teaching. Persisted so it holds across reloads too.
+    const seenKey = `sv_instructions_seen_${loop}`;
+    if (localStorage.getItem(seenKey) === "1") return;
+
     // Both timers are re-checked at fire time, not just cancelled up
     // front — a timer already in flight the instant dismissedRef flips
     // true (e.g. the dismiss click's own pointerdown, which fires
@@ -106,11 +113,13 @@ export default function App() {
     const idleTimer = setTimeout(() => {
       if (dismissedRef.current) return;
       setShowInstructions(true);
+      localStorage.setItem(seenKey, "1");
       track("instructions_shown", { loop, trigger: "idle" });
     }, IDLE_INTERACTION_MS);
     const failsafe = setTimeout(() => {
       if (dismissedRef.current) return;
       setShowInstructions(true);
+      localStorage.setItem(seenKey, "1");
       track("instructions_shown", { loop, trigger: "no_progress" });
     }, NO_START_FAILSAFE_MS);
 
