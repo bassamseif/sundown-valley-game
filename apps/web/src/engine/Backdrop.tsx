@@ -91,7 +91,7 @@ export function Backdrop({ active = false }: { active?: boolean }) {
     // legibility matters more than atmosphere. Multiplicative, not a
     // global exposure bump, so the sunset's own colors/contrast still
     // read the same — only brightness scales.
-    const boost = 1 + boostRef.current * 1.1;
+    const boost = 1 + boostRef.current * 1.5;
 
     if (sunLightRef.current) {
       sunLightRef.current.position.copy(dir).multiplyScalar(30);
