@@ -88,7 +88,7 @@ export function GrassTuft({
   seed?: number;
 }) {
   const geometry = useMemo(() => bladeGeometry(), []);
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const meshRef = useRef<THREE.InstancedMesh | null>(null);
   const uniformsRef = useRef<{ uTime: { value: number } } | null>(null);
 
   const matrices = useMemo(

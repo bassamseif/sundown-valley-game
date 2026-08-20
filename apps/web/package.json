@@ -9,7 +9,7 @@
     "preview": "vite preview --host",
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler pages deploy dist --project-name sundown-valley-game"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",
