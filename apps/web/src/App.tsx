@@ -45,7 +45,7 @@ const LOOPS: { id: Loop; label: string; icon: string; gradient: string; instruct
     label: "Market Day",
     icon: "⚖",
     gradient: "linear-gradient(135deg, #ffd27f, #ff9d7f)",
-    instruction: "Tap coins to light up the gems and balance the scale. Level and all lit means you paid it exactly.",
+    instruction: "Tap coins to put weight on the scale. Level means you paid the exact price.",
   },
 ];
 
