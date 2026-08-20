@@ -79,7 +79,7 @@ export function Backdrop() {
 
     if (sunLightRef.current) {
       sunLightRef.current.position.copy(dir).multiplyScalar(30);
-      sunLightRef.current.intensity = THREE.MathUtils.lerp(2.1, 1.0, setProgress);
+      sunLightRef.current.intensity = THREE.MathUtils.lerp(2.1, 1.35, setProgress);
       sunLightRef.current.color.setHSL(THREE.MathUtils.lerp(0.14, 0.03, setProgress), 0.85, 0.62);
     }
 

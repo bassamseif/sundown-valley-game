@@ -121,7 +121,7 @@ export function SceneShell({ children, cameraPosition = [0, 6, 9], target = [0, 
     <Canvas
       shadows
       dpr={[1, 2]}
-      gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.15 }}
+      gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.35 }}
       camera={STABLE_CAMERA_CONFIG}
     >
       <Backdrop />
