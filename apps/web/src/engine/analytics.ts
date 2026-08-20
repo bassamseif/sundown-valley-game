@@ -12,7 +12,10 @@ const API_HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) ?? "h
 let initialized = false;
 
 export function initAnalytics() {
-  if (initialized || !API_KEY) return;
+  // Dev server sessions (localhost, dev.bassamseif.com tunnel) are
+  // just me poking at the game — never worth recording, and would
+  // otherwise pollute real player data with test traffic.
+  if (initialized || !API_KEY || !import.meta.env.PROD) return;
   posthog.init(API_KEY, {
     api_host: API_HOST,
     // Autocapture (every click, every DOM node) is deliberately off —
